@@ -84,13 +84,12 @@ def main():
             print("[*] Running verification on corrupted ledger...")
             is_valid, reason, failed_seq = mgr.verify_chain()
             if not is_valid:
-                print(f"\n[+] SUCCESS: TAMPER DETECTED!")
-                print(f"    Sequence: {failed_seq}")
-                print(f"    Reason:   {reason}\n")
-                sys.exit(0)
+                print(f"\n[FAIL] TAMPER DETECTED AT SEQ {failed_seq}")
+                print(f"       Details: {reason}\n")
+                sys.exit(1)
             else:
                 print("[-] ERROR: Tamper was NOT detected!")
-                sys.exit(1)
+                sys.exit(2)
         finally:
             if os.path.exists(tmp_db_path):
                 try:

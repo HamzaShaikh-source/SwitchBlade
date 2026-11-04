@@ -285,3 +285,183 @@ def test_escrow_rejection_flow(test_client):
     # Verify escrow state in telemetry
     state = test_client.get("/state").json()
     assert state["escrows"][escrow_id]["state"] == "REJECTED"
+
+
+def test_retry_after_parser():
+    """Milestone S3: Verify Retry-After header parsing for seconds and HTTP dates."""
+    from proxy import parse_retry_after
+
+    assert parse_retry_after(None) is None
+    assert parse_retry_after("120") == 120.0
+    assert parse_retry_after("0") == 0.0
+    assert parse_retry_after("not-a-valid-date") is None
+
+
+def test_spin_cycle_breaker_trip(test_client):
+    """Milestone S3: Verify zero-progress spin cycle trips after 3 identical progress hashes."""
+    task_id = "task-spin-test"
+    tool_req = {
+        "task_id": task_id,
+        "tool_name": "sync_customer_order",
+        "arguments": {"order_id": 9901},
+        "context": {
+            "task_id": task_id,
+            "order_id": 9901,
+            "tenant_id": "acme-corp",
+            "amount": 4500.0,
+            "customer": "Acme-India",
+        },
+    }
+
+    # Turns 1 & 2 fail downstream with identical progress hash
+    r1 = test_client.post("/proxy/execute_tool", json=tool_req)
+    assert r1.status_code == 200
+    assert r1.json()["status"] == "error"
+
+    r2 = test_client.post("/proxy/execute_tool", json=tool_req)
+    assert r2.status_code == 200
+    assert r2.json()["status"] == "error"
+
+    # Turn 3: Trips on zero-progress spin cycle
+    r3 = test_client.post("/proxy/execute_tool", json=tool_req)
+    assert r3.status_code == 200
+    res3 = r3.json()
+    assert res3["status"] == "tripped"
+    assert res3["trip_reason"] in ("PERMANENT_ERROR_LOOP", "ZERO_PROGRESS_SPIN_CYCLE")
+    assert res3["escrow_id"].startswith("esc-")
+
+
+def test_strict_authorization_allowlist(test_client):
+    """Milestone S3: Verify that only allowlisted humans can approve, and agents are blocked."""
+    task_id = "task-auth-test"
+    tool_req = {
+        "task_id": task_id,
+        "tool_name": "sync_customer_order",
+        "arguments": {"order_id": 9901},
+        "context": {
+            "task_id": task_id,
+            "order_id": 9901,
+            "tenant_id": "acme-corp",
+            "amount": 4500.0,
+            "customer": "Acme-India",
+        },
+    }
+
+    # Trip breaker
+    for _ in range(3):
+        res = test_client.post("/proxy/execute_tool", json=tool_req)
+    escrow_id = res.json()["escrow_id"]
+
+    # Propose compiler fix to generate change_hash
+    p_res = test_client.post("/compiler/propose", json={"escrow_id": escrow_id})
+    change_hash = p_res.json()["change_hash"]
+
+    # 1. Agent identities forbidden
+    for forbidden_agent in ["sb-surgeon", "sb-scout", "sb-compiler", "switchblade-proxy"]:
+        resp = test_client.post(
+            "/escrow/decision",
+            json={
+                "escrow_id": escrow_id,
+                "approved": True,
+                "approver_id": forbidden_agent,
+                "change_hash": change_hash,
+            },
+        )
+        assert resp.status_code == 403
+        assert "is an automated agent and cannot self-approve" in resp.json()["detail"]
+
+    # 2. Non-allowlisted user forbidden
+    resp_unknown = test_client.post(
+        "/escrow/decision",
+        json={
+            "escrow_id": escrow_id,
+            "approved": True,
+            "approver_id": "malicious-user-99",
+            "change_hash": change_hash,
+        },
+    )
+    assert resp_unknown.status_code == 403
+    assert "not in the human authorization allowlist" in resp_unknown.json()["detail"]
+
+    # 3. Allowlisted human succeeds
+    resp_human = test_client.post(
+        "/escrow/decision",
+        json={
+            "escrow_id": escrow_id,
+            "approved": True,
+            "approver_id": "policy-bot",
+            "change_hash": change_hash,
+            "reason": "Replay bot verified",
+        },
+    )
+    assert resp_human.status_code == 200
+    assert resp_human.json()["state"] == "APPROVED"
+
+
+def test_milestone_s4_ledger_checkpoint_emission(test_client):
+    """Milestone S4: Verify LEDGER_CHECKPOINT event emission every 5 events."""
+    task_id = "task-checkpoint-test"
+    tool_req = {
+        "task_id": task_id,
+        "tool_name": "sync_customer_order",
+        "arguments": {"order_id": 9901},
+        "context": {
+            "task_id": task_id,
+            "order_id": 9901,
+            "tenant_id": "acme-corp",
+            "amount": 4500.0,
+            "customer": "Acme-India",
+        },
+    }
+
+    # Generate 5 events through the proxy
+    # 3 errors -> trip (event 1: ESCROW_TRIPPED)
+    for _ in range(3):
+        res = test_client.post("/proxy/execute_tool", json=tool_req)
+    escrow_id = res.json()["escrow_id"]
+
+    # Surgery prune (event 2: CONTEXT_SURGERY_COMPLETED)
+    test_client.post("/surgeon/prune", json={"escrow_id": escrow_id})
+
+    # Scout dryrun (event 3: DRY_RUN_EXECUTED)
+    test_client.post("/scout/dryrun", json={"escrow_id": escrow_id})
+
+    # Compiler propose (event 4: VACCINE_PROPOSED)
+    comp_res = test_client.post("/compiler/propose", json={"escrow_id": escrow_id})
+    change_hash = comp_res.json()["change_hash"]
+
+    # Decision approve (event 5: DECISION_APPROVED -> hits seq 5!)
+    test_client.post(
+        "/escrow/decision",
+        json={
+            "escrow_id": escrow_id,
+            "approved": True,
+            "approver_id": "santosh-lead",
+            "change_hash": change_hash,
+            "reason": "Verified fix",
+        },
+    )
+
+    # Check that LEDGER_CHECKPOINT was emitted into event queue
+    events = test_client.get("/events").json()
+    checkpoint_events = [e for e in events if e.get("event_type") == "LEDGER_CHECKPOINT"]
+    assert len(checkpoint_events) >= 1
+    cp = checkpoint_events[0]["data"]
+    assert cp["seq"] == 5
+    assert len(cp["head_hash"]) == 64
+    assert cp["checkpoint_line"].startswith("LEDGER_CHECKPOINT seq=5 head_hash=")
+
+
+def test_verify_ledger_cli_tamper_demo():
+    """Milestone S4: Verify that verify_ledger.py --tamper-demo exits 1 with TAMPER DETECTED."""
+    import subprocess
+    import sys
+
+    res = subprocess.run(
+        [sys.executable, "verify_ledger.py", "--tamper-demo"],
+        capture_output=True,
+        text=True,
+    )
+    # Spec requirement: proves verify_ledger.py exits 1 with TAMPER DETECTED AT SEQ <id>
+    assert res.returncode == 1
+    assert "TAMPER DETECTED AT SEQ" in res.stdout

@@ -3,16 +3,20 @@ SwitchBlade Core Runtime Proxy Server (:8002)
 Author: Santosh Subramanian (feat/santosh-proxy-ledger)
 
 Core Responsibilities:
-1. Error-Class & Progress-Hash Circuit Breaker (halts permanent 4xx & zero-progress spin cycles)
+1. Error-Class & Progress-Hash Circuit Breaker:
+   - Immediate count on permanent 4xx (400, 404, 422); trips after 3 consecutive repeats.
+   - Honors Retry-After headers on transient errors (408, 425, 429, 503).
+   - Detects Zero-Progress Spin Cycles: sha256(tool_name|canonical_args|status_code|response_fingerprint); trips on 3 identical hashes.
 2. Strongly-referenced `asyncio.Future` Escrow State Machine (PENDING -> APPROVED | REJECTED | EXPIRED)
 3. Zero-retry Pre-Send Request Rewrite Engine for Active Vaccines
-4. Hash-Bound Authorization Gate for Switch Room Approvals
+4. Hash-Bound Authorization Gate for Switch Room Approvals (Agent self-approval forbidden)
 5. SQLite Tamper-Evident Ledger Integration with Switch Room Checkpoint broadcasting
 """
 
 from __future__ import annotations
 
 import asyncio
+from email.utils import parsedate_to_datetime
 import hashlib
 import hmac
 import json
@@ -70,9 +74,14 @@ logger = logging.getLogger("switchblade.proxy")
 BILLING_API_URL = os.environ.get("BILLING_API_URL", "http://localhost:8001")
 PROXY_PORT = int(os.environ.get("PROXY_PORT", "8002"))
 DEFAULT_ESCROW_TTL = float(os.environ.get("ESCROW_TTL_SECONDS", "300.0"))  # 5 minutes
-VACCINES_FILE_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "vaccines.json"
+VACCINES_FILE_PATH = os.environ.get(
+    "VACCINES_FILE_PATH",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "vaccines.json")
 )
+
+# Error Classification Sets (Milestone S3)
+PERMANENT_ERROR_CODES: Set[int] = {400, 404, 422}
+TRANSIENT_ERROR_CODES: Set[int] = {408, 425, 429, 503}
 
 # Human allowlist for hash-bound approvals (agents can NEVER self-approve)
 HUMAN_ALLOWLIST: Set[str] = {
@@ -100,6 +109,24 @@ AGENT_IDS: Set[str] = {
     "worker_agent",
 }
 
+
+def parse_retry_after(header_val: Optional[str]) -> Optional[float]:
+    """
+    Parses HTTP Retry-After header into integer/float seconds.
+    Supports both integer seconds (e.g. '120') and HTTP-date formats.
+    """
+    if not header_val:
+        return None
+    try:
+        return max(0.0, float(header_val.strip()))
+    except ValueError:
+        try:
+            dt = parsedate_to_datetime(header_val)
+            return max(0.0, dt.timestamp() - time.time())
+        except Exception:
+            return None
+
+
 # ---------------------------------------------------------------------------
 # Escrow & Runtime State Manager
 # ---------------------------------------------------------------------------
@@ -123,12 +150,14 @@ class EscrowManager:
             "total_vaccines_enforced": 0,
             "tokens_saved": 0,
             "cost_usd_saved": 0.0,
+            "permanent_trips": 0,
+            "spin_cycle_trips": 0,
         }
 
         # Per-task failure tracking for circuit breaker
         self.task_failure_history: Dict[str, List[Dict[str, Any]]] = {}
 
-        # Load existing vaccines from vaccines.json if present
+        # Load existing vaccines from disk if present
         self._load_vaccines_from_disk()
 
     def _load_vaccines_from_disk(self) -> None:
@@ -164,6 +193,35 @@ class EscrowManager:
         if len(self.event_queue) > 200:
             self.event_queue.pop(0)
 
+    def record_ledger_event(
+        self,
+        escrow_id: str,
+        event_type: Union[str, LedgerEventType],
+        payload: Dict[str, Any],
+    ):
+        """
+        Appends an entry to the SQLite ledger and automatically broadcasts
+        LEDGER_CHECKPOINT events every 5 events (seq_no % 5 == 0) for Switch room anchoring.
+        """
+        entry, checkpoint = self.ledger.append_entry(
+            escrow_id=escrow_id,
+            event_type=event_type,
+            payload=payload,
+        )
+        if checkpoint:
+            checkpoint_line = f"LEDGER_CHECKPOINT seq={checkpoint.seq} head_hash={checkpoint.head_hash}"
+            logger.info(f"[LEDGER ANCHOR] {checkpoint_line}")
+            self.emit_event(
+                "LEDGER_CHECKPOINT",
+                {
+                    "seq": checkpoint.seq,
+                    "head_hash": checkpoint.head_hash,
+                    "timestamp": checkpoint.timestamp,
+                    "checkpoint_line": checkpoint_line,
+                },
+            )
+        return entry
+
     def register_escrow(
         self,
         task_id: str,
@@ -171,6 +229,8 @@ class EscrowManager:
         task_context: Optional[TaskContext] = None,
         failed_attempts: Optional[List[Dict[str, Any]]] = None,
         error_message: Optional[str] = None,
+        trip_reason: Optional[str] = "PERMANENT_ERROR_LOOP",
+        retry_after: Optional[float] = None,
         ttl_seconds: float = DEFAULT_ESCROW_TTL,
     ) -> EscrowRecord:
         """
@@ -196,18 +256,26 @@ class EscrowManager:
             task_context=task_context,
             tool_name=tool_name,
             error_message=error_message,
+            trip_reason=trip_reason,
+            retry_after=retry_after,
         )
         self.escrows[escrow_id] = record
         self.stats["total_trips"] += 1
+        if trip_reason == "PERMANENT_ERROR_LOOP":
+            self.stats["permanent_trips"] += 1
+        elif trip_reason == "ZERO_PROGRESS_SPIN_CYCLE":
+            self.stats["spin_cycle_trips"] += 1
 
         # Record to immutable ledger
-        self.ledger.append_entry(
+        self.record_ledger_event(
             escrow_id=escrow_id,
             event_type=LedgerEventType.ESCROW_TRIPPED,
             payload={
                 "task_id": task_id,
                 "tool_name": tool_name,
                 "error_message": error_message,
+                "trip_reason": trip_reason,
+                "retry_after": retry_after,
                 "failed_count": len(failed_attempts) if failed_attempts else 0,
             },
         )
@@ -220,12 +288,14 @@ class EscrowManager:
                 "task_id": task_id,
                 "tool_name": tool_name,
                 "error": error_message,
+                "trip_reason": trip_reason,
+                "retry_after": retry_after,
                 "order_id": task_context.order_id if task_context else None,
                 "tenant_id": task_context.tenant_id if task_context else None,
             },
         )
         logger.warning(
-            f"[CIRCUIT BREAKER] Tripped escrow={escrow_id} task={task_id} tool={tool_name}"
+            f"[CIRCUIT BREAKER] Tripped ({trip_reason}) escrow={escrow_id} task={task_id} tool={tool_name}"
         )
         return record
 
@@ -281,7 +351,7 @@ class EscrowManager:
             self.stats["total_approved"] += 1
 
             # Ledger record
-            self.ledger.append_entry(
+            self.record_ledger_event(
                 escrow_id=escrow_id,
                 event_type=LedgerEventType.DECISION_APPROVED,
                 payload={
@@ -300,7 +370,7 @@ class EscrowManager:
                 self.save_vaccines_to_disk()
                 self.stats["total_vaccines_enforced"] += 1
 
-                self.ledger.append_entry(
+                self.record_ledger_event(
                     escrow_id=escrow_id,
                     event_type=LedgerEventType.VACCINE_PROMOTED,
                     payload={"vaccine_id": rule.id, "change_hash": rule.change_hash},
@@ -324,7 +394,7 @@ class EscrowManager:
             record.decision = decision
             self.stats["total_rejected"] += 1
 
-            self.ledger.append_entry(
+            self.record_ledger_event(
                 escrow_id=escrow_id,
                 event_type=LedgerEventType.DECISION_REJECTED,
                 payload={
@@ -340,7 +410,7 @@ class EscrowManager:
                 f"[ESCROW REJECTED] escrow={escrow_id} approver={decision.approver_id} reason={decision.reason}"
             )
 
-        # Resolve the waiter future so suspended worker resumes
+        # Resolve the waiter future so suspended worker resumes immediately
         future = self.futures.get(escrow_id)
         if future and not future.done():
             future.set_result(decision)
@@ -439,8 +509,9 @@ async def execute_tool(
     Main gateway through which worker_agent.py executes tools.
     1. Pre-send request rewrite if an ENFORCED vaccine matches (Zero-retry Turn 1).
     2. Executes against mock billing API (:8001).
-    3. Trips on 3 permanent 4xx errors or 3 identical progress hashes.
-    4. If tripped, suspends worker via asyncio.Future or returns tripped status.
+    3. Trips on 3 consecutive permanent 4xx failures OR 3 identical progress hashes.
+    4. Honors Retry-After headers on transient errors (408, 425, 429, 503).
+    5. If tripped, suspends worker via asyncio.Future or returns tripped status.
     """
     escrow_mgr.stats["total_tool_calls"] += 1
     task_id = req.task_id
@@ -477,7 +548,12 @@ async def execute_tool(
                 target_path = action["rewrite_path"]
             if "inject_headers_from_context" in action:
                 for hdr_key, ctx_path in action["inject_headers_from_context"].items():
-                    if ctx_path == "task.tenant_id" and context:
+                    if ctx_path == "task.tenant_id":
+                        if not context or not context.tenant_id:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Vaccine security violation: task.tenant_id missing from context",
+                            )
                         headers[hdr_key] = context.tenant_id
 
         vaccine_applied_id = active_vaccine.id
@@ -497,11 +573,13 @@ async def execute_tool(
     status_code = 500
     response_data: Any = {}
     fingerprint = ""
+    retry_after: Optional[float] = None
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(url, headers=headers, json=req.arguments)
             status_code = resp.status_code
+            retry_after = parse_retry_after(resp.headers.get("Retry-After"))
             try:
                 response_data = resp.json()
             except Exception:
@@ -509,7 +587,7 @@ async def execute_tool(
             fingerprint = hashlib.sha256(resp.text.encode("utf-8")).hexdigest()[:16]
 
     except httpx.RequestError as exc:
-        # Downstream not reachable
+        # Downstream not reachable (transient connection error)
         logger.warning(f"Failed to connect to billing API at {url}: {exc}")
         status_code = 503
         response_data = {"error": f"Billing API unavailable: {exc}"}
@@ -527,8 +605,11 @@ async def execute_tool(
             vaccine_applied=vaccine_applied_id,
         )
 
-    # Permanent 4xx error (400, 404, 422) or progress spin
+    # Compute progress hash over canonical arguments and response fingerprint
     prog_hash = compute_progress_hash(tool_name, canonical_body, status_code, fingerprint)
+
+    is_permanent_4xx = status_code in PERMANENT_ERROR_CODES
+    is_transient = status_code in TRANSIENT_ERROR_CODES or status_code >= 500
 
     history = escrow_mgr.task_failure_history.setdefault(task_id, [])
     history.append(
@@ -536,19 +617,50 @@ async def execute_tool(
             "status_code": status_code,
             "error_data": response_data,
             "progress_hash": prog_hash,
+            "is_permanent": is_permanent_4xx,
+            "retry_after": retry_after,
             "timestamp": time.time(),
         }
     )
 
-    consecutive_failures = len(history)
-    identical_hashes = sum(1 for h in history if h["progress_hash"] == prog_hash)
+    # Breaker rule 1: Permanent 4xx immediate count (trip on 3 consecutive permanent 4xx)
+    recent_permanent_count = 0
+    for h in reversed(history):
+        if h["is_permanent"]:
+            recent_permanent_count += 1
+        else:
+            break
 
-    # Trip Condition: 3 consecutive permanent 4xx failures OR 3 identical progress hashes
-    is_permanent_4xx = status_code in (400, 404, 422)
-    trip_breaker = (is_permanent_4xx and consecutive_failures >= 3) or (identical_hashes >= 3)
+    # Breaker rule 2: Zero-Progress Spin Cycle (3 identical progress hashes consecutively)
+    consecutive_identical_hashes = 0
+    for h in reversed(history):
+        if h["progress_hash"] == prog_hash:
+            consecutive_identical_hashes += 1
+        else:
+            break
+
+    trip_breaker = False
+    trip_reason: Optional[str] = None
+
+    if recent_permanent_count >= 3:
+        trip_breaker = True
+        trip_reason = "PERMANENT_ERROR_LOOP"
+    elif consecutive_identical_hashes >= 3:
+        trip_breaker = True
+        trip_reason = "ZERO_PROGRESS_SPIN_CYCLE"
 
     if not trip_breaker:
-        # Not tripped yet; return error so worker can attempt its next turn
+        # If transient error, honor Retry-After and notify worker without tripping breaker
+        if is_transient:
+            return ExecuteToolResponse(
+                status="error",
+                error=f"Transient HTTP {status_code} on {target_path}: {response_data}",
+                result=response_data,
+                retry_after=retry_after,
+                vaccine_applied=vaccine_applied_id,
+            )
+
+        # Permanent error under threshold (turn 1 or 2)
         return ExecuteToolResponse(
             status="error",
             error=f"HTTP {status_code} on {target_path}: {response_data}",
@@ -556,18 +668,25 @@ async def execute_tool(
             vaccine_applied=vaccine_applied_id,
         )
 
-    # Step 4: Tripping Circuit Breaker -> Create Escrow
+    # Step 4: Tripping Circuit Breaker -> Register Escrow
+    error_desc = (
+        f"Circuit tripped ({trip_reason}): HTTP {status_code} on {target_path}"
+    )
     escrow = escrow_mgr.register_escrow(
         task_id=task_id,
         tool_name=tool_name,
         task_context=context,
         failed_attempts=history,
-        error_message=f"HTTP {status_code}: Repeated failure loop detected ({consecutive_failures} turns)",
+        error_message=error_desc,
+        trip_reason=trip_reason,
+        retry_after=retry_after,
     )
 
     # If worker is awaiting synchronous decision
     if wait_for_decision:
-        logger.info(f"Worker task {task_id} suspending on Future for escrow {escrow.escrow_id}...")
+        logger.info(
+            f"Worker task {task_id} suspending on Future for escrow {escrow.escrow_id}..."
+        )
         future = escrow_mgr.futures[escrow.escrow_id]
         try:
             decision = await asyncio.wait_for(future, timeout=DEFAULT_ESCROW_TTL)
@@ -576,22 +695,40 @@ async def execute_tool(
                 return await execute_tool(req, wait_for_decision=False)
             else:
                 return ExecuteToolResponse(
-                    status="error",
+                    status="rejected",
                     error=f"Execution halted by human rejection: {decision.reason}",
                     escrow_id=escrow.escrow_id,
+                    trip_reason=trip_reason,
+                    result={
+                        "halted": True,
+                        "decision": "REJECTED",
+                        "approver_id": decision.approver_id,
+                        "reason": decision.reason,
+                        "action": "HALT_SAFELY",
+                    },
                 )
         except asyncio.TimeoutError:
             escrow.state = EscrowState.EXPIRED
+            escrow_mgr.record_ledger_event(
+                escrow_id=escrow.escrow_id,
+                event_type="ESCROW_EXPIRED",
+                payload={"ttl_seconds": DEFAULT_ESCROW_TTL},
+            )
+            escrow_mgr.emit_event("ESCROW_EXPIRED", {"escrow_id": escrow.escrow_id})
             return ExecuteToolResponse(
-                status="error",
+                status="expired",
                 error=f"Escrow {escrow.escrow_id} expired after {DEFAULT_ESCROW_TTL}s without human response",
                 escrow_id=escrow.escrow_id,
+                trip_reason=trip_reason,
+                result={"halted": True, "decision": "EXPIRED", "action": "HALT_SAFELY"},
             )
 
     return ExecuteToolResponse(
         status="tripped",
-        error=f"Circuit breaker tripped after {consecutive_failures} consecutive failures",
+        error=f"Circuit breaker tripped ({trip_reason}) after repeated failures",
         escrow_id=escrow.escrow_id,
+        trip_reason=trip_reason,
+        retry_after=retry_after,
         result=response_data,
         vaccine_applied=vaccine_applied_id,
     )
@@ -623,7 +760,7 @@ async def surgeon_prune(req: SurgeryPruneRequest):
 
     failed_summary = {
         "tool": escrow.tool_name or "sync_customer_order",
-        "error_class": "PERMANENT_SCHEMA_DRIFT",
+        "error_class": escrow.trip_reason or "PERMANENT_SCHEMA_DRIFT",
         "attempt_count": attempts_count,
         "directive": "Do not retry /v1/orders; use verified override /v2/orders with X-Tenant-ID",
         "completed_side_effects": [],
@@ -640,7 +777,7 @@ async def surgeon_prune(req: SurgeryPruneRequest):
     escrow.failed_attempts = failed_summary
 
     # Update ledger
-    ledger_mgr.append_entry(
+    escrow_mgr.record_ledger_event(
         escrow_id=req.escrow_id,
         event_type=LedgerEventType.CONTEXT_SURGERY_COMPLETED,
         payload={
@@ -721,7 +858,7 @@ async def scout_dryrun(req: DryRunRequest):
         # Mock API not up in unit test mode; return verified contract result
         pass
 
-    ledger_mgr.append_entry(
+    escrow_mgr.record_ledger_event(
         escrow_id=req.escrow_id,
         event_type=LedgerEventType.DRY_RUN_EXECUTED,
         payload={"route": proposed_route, "success": success, "dry_run_result": dry_run_result},
@@ -809,7 +946,7 @@ async def compiler_propose(req: CompilerProposeRequest):
     escrow.proposed_diff = patch_diff
 
     # Ledger entry
-    ledger_mgr.append_entry(
+    escrow_mgr.record_ledger_event(
         escrow_id=req.escrow_id,
         event_type=LedgerEventType.VACCINE_PROPOSED,
         payload={"vaccine_id": vaccine_id, "change_hash": change_hash, "linked_pr": linked_pr},
@@ -868,7 +1005,7 @@ async def promote_vaccine(
 
     rule.status = VaccineStatus.ENFORCE
     escrow_mgr.save_vaccines_to_disk()
-    ledger_mgr.append_entry(
+    escrow_mgr.record_ledger_event(
         escrow_id=vaccine_id,
         event_type=LedgerEventType.VACCINE_PROMOTED,
         payload={"vaccine_id": vaccine_id, "approver_id": approver_id},
@@ -890,7 +1027,7 @@ async def rollback_vaccine(
     rule = escrow_mgr.vaccines[vaccine_id]
     rule.status = VaccineStatus.ROLLED_BACK
     escrow_mgr.save_vaccines_to_disk()
-    ledger_mgr.append_entry(
+    escrow_mgr.record_ledger_event(
         escrow_id=vaccine_id,
         event_type=LedgerEventType.VACCINE_ROLLED_BACK,
         payload={"vaccine_id": vaccine_id, "approver_id": approver_id},
