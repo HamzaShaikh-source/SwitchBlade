@@ -3,8 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#e9e7df">
-  <title>SwitchBlade — Control Plane</title>
+  <meta name="theme-color" content="#0b0f19">
+  <title>SwitchBlade — Autonomous In-Flight FinOps & Control Plane</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/ui/assets/site.css">
   <link rel="stylesheet" href="/ui/assets/effects.css">
   <script src="/ui/assets/site.js" defer></script>
@@ -14,31 +17,62 @@
   <a class="skip" href="#content">Skip to content</a>
   <div class="site-frame">
     <header class="topbar">
-      <a class="wordmark" href="/" aria-label="SwitchBlade, overview"><span class="mark" aria-hidden="true">S<span>/</span>B</span><span>SWITCH<br>BLADE</span></a>
-      <span class="topbar-note">AUTONOMOUS SYSTEMS / CONTROL PLANE</span>
+      <a class="wordmark" href="/" aria-label="SwitchBlade Homepage">
+        <span class="mark" aria-hidden="true">S<span>/</span>B</span>
+        <span>SWITCH<br>BLADE</span>
+      </a>
+      <span class="topbar-note">AUTONOMOUS SYSTEMS // IN-FLIGHT FINOPS</span>
       <button class="menu-toggle" type="button" aria-controls="site-nav" aria-expanded="false">MENU <span aria-hidden="true">↗</span></button>
       <nav id="site-nav" aria-label="Primary navigation">
-        <a href="/" data-route="/">Overview</a>
+        <a href="/" data-route="/">Landing</a>
+        <a href="/overview" data-route="/overview">Overview</a>
         <a href="/activity" data-route="/activity">Activity</a>
         <a href="/escrows" data-route="/escrows">Escrows</a>
         <a href="/vaccines" data-route="/vaccines">Vaccines</a>
         <a href="/ledger" data-route="/ledger">Ledger</a>
+        <a href="/benchmarks" data-route="/benchmarks">Benchmarks</a>
+        <a href="/wispr" data-route="/wispr">Wispr Flow</a>
       </nav>
-      <span id="connection" class="connection"><i></i> CONNECTING</span>
+      <div class="topbar-actions">
+        <a href="/overview" class="btn topbar-cta">Control Plane ↗</a>
+        <span id="connection" class="connection"><i></i> CONNECTING</span>
+      </div>
     </header>
+
     <aside class="workspace-rail" aria-label="Workspace navigation">
-      <div class="rail-section-label">01 / WORKSPACE</div>
+      <div class="rail-section-label">01 / NAVIGATION</div>
       <nav class="rail-nav" aria-label="Workspace pages">
-        <a href="/" data-route="/"><span>01</span> Overview <b>↗</b></a>
+        <a href="/" data-route="/"><span>00</span> Landing <b>↗</b></a>
+        <a href="/overview" data-route="/overview"><span>01</span> Overview <b>↗</b></a>
         <a href="/activity" data-route="/activity"><span>02</span> Activity <b>↗</b></a>
         <a href="/escrows" data-route="/escrows"><span>03</span> Escrows <b>↗</b></a>
         <a href="/vaccines" data-route="/vaccines"><span>04</span> Vaccines <b>↗</b></a>
         <a href="/ledger" data-route="/ledger"><span>05</span> Ledger <b>↗</b></a>
+        <a href="/benchmarks" data-route="/benchmarks"><span>06</span> Benchmarks <b>↗</b></a>
+        <a href="/wispr" data-route="/wispr"><span>07</span> Wispr Flow <b>↗</b></a>
       </nav>
-      <div class="rail-bottom"><span>CONTROL PLANE / LOCAL</span><strong id="rail-mode">CONNECTING</strong><small>Real-time state from the SwitchBlade proxy.</small></div>
+      <div class="rail-bottom">
+        <span>CONTROL PLANE // LOCAL</span>
+        <strong id="rail-mode">CONNECTING</strong>
+        <small>Real-time telemetry from SwitchBlade proxy (:8002).</small>
+      </div>
     </aside>
+
     <main id="content" tabindex="-1"></main>
-    <footer class="footer"><span>SWITCHBLADE <b>®</b> / IN-FLIGHT FINOPS CONTROL</span><span>BUILT FOR AGENTS THAT DON’T STOP.</span><a href="/docs">API DOCS ↗</a></footer>
+
+    <footer class="footer">
+      <div>
+        <span>SWITCHBLADE <b>®</b> // IN-FLIGHT FINOPS CIRCUIT BREAKER</span>
+        <span class="footer-divider">•</span>
+        <span>FLIP THE SWITCH HACKATHON 2026 (TEAM 1)</span>
+      </div>
+      <div class="footer-links">
+        <a href="/benchmarks">BENCHMARKS (751K TOKENS SAVED)</a>
+        <a href="/wispr">WISPR FLOW AUDIO</a>
+        <a href="/docs">API DOCS ↗</a>
+        <a href="https://github.com/HamzaShaikh-source/SwitchBlade" target="_blank" rel="noopener">GITHUB ↗</a>
+      </div>
+    </footer>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </body>

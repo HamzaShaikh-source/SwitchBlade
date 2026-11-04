@@ -471,10 +471,13 @@ app.mount("/ui/assets", StaticFiles(directory=os.path.join(os.path.dirname(__fil
 
 
 @app.get("/", response_class=HTMLResponse, tags=["UI"])
+@app.get("/overview", response_class=HTMLResponse, tags=["UI"])
 @app.get("/activity", response_class=HTMLResponse, tags=["UI"])
 @app.get("/escrows", response_class=HTMLResponse, tags=["UI"])
 @app.get("/vaccines", response_class=HTMLResponse, tags=["UI"])
 @app.get("/ledger", response_class=HTMLResponse, tags=["UI"])
+@app.get("/benchmarks", response_class=HTMLResponse, tags=["UI"])
+@app.get("/wispr", response_class=HTMLResponse, tags=["UI"])
 async def get_dashboard():
     """Serves the multi-page SwitchBlade control plane."""
     dashboard_path = os.path.join(os.path.dirname(__file__), "ui", "dashboard.html")
@@ -485,6 +488,17 @@ async def get_dashboard():
         content="<h1>SwitchBlade Control Plane</h1><p>ui/dashboard.html not found.</p>",
         status_code=404,
     )
+
+
+
+@app.get("/bench/results", tags=["Telemetry"])
+async def get_bench_results():
+    """Returns the frozen benchmark evaluation results JSON."""
+    bench_file = os.path.join(os.path.dirname(__file__), "bench", "results.json")
+    if os.path.exists(bench_file):
+        with open(bench_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"error": "results.json not found"}
 
 
 @app.get("/health", tags=["System"])
