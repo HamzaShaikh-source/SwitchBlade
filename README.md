@@ -7,6 +7,10 @@
 
 > Built by **Team 1** (**Hamza Shaikh, Santosh Subramanian, Aaditya Arunpal, and Janani**) for the [**Flip the Switch Hackathon**](https://www.wemakedevs.org/hackathons/switch), targeting **Track 01: Best Business Workflow ($2,000)**, **Wispr Flow ($500)**, and **Best Blog (AirPods 5)**.
 
+* 📖 **[Read the Full Technical Blog Post (BLOG.md)](BLOG.md)** for the Best Blog track.
+* 🎙️ **[Read the Wispr Flow Voice Governance Guide (WISPR_FLOW.md)](WISPR_FLOW.md)** for the Wispr Flow track.
+* 🎬 **[View the 2:45 Demo Video Runbook (DEMO_RUNBOOK.md)](DEMO_RUNBOOK.md)** for recording walkthrough.
+
 ---
 
 ## 1. The Problem: Unbounded Agentic Retry Loops & FinOps Drain
