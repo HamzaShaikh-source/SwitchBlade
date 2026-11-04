@@ -59,6 +59,7 @@ htmlcov/
 .DS_Store
 Thumbs.db
 desktop.ini
+node_modules/
 
 # Benchmark scratch
 bench/results.json.tmp
