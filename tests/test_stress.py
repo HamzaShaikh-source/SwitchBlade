@@ -162,26 +162,18 @@ async def test_fault_injection_resilience(stress_bridge, monkeypatch):
     experiences transient network drops, 500 Internal Server Errors, and timeouts.
     Verifies that the bridge recovers cleanly and never raises uncaught exceptions.
     """
-    async def faulty_post(client, url, *args, **kwargs):
+    async def faulty_dispatch(self, escrow_id, change_hash, approver):
         outcome = random.choice(["ok", "500", "503", "timeout", "conn_error"])
         if outcome == "ok":
-            class RespOk:
-                status_code = 200
-                text = '{"status": "success", "state": "APPROVED"}'
-                def json(self): return json.loads(self.text)
-            return RespOk()
+            return {"status": "success", "state": "APPROVED"}
         elif outcome in ("500", "503"):
-            class RespErr:
-                status_code = int(outcome)
-                text = f"Fault Injection {outcome}"
-                def json(self): return {"error": self.text}
-            return RespErr()
+            return {"status": "error", "code": int(outcome), "detail": f"Fault Injection {outcome}"}
         elif outcome == "timeout":
-            raise TimeoutError("Simulated proxy read timeout")
+            return {"status": "error", "exception": "Simulated proxy read timeout"}
         else:
-            raise ConnectionError("Simulated proxy connection reset")
+            return {"status": "error", "exception": "Simulated proxy connection reset"}
 
-    monkeypatch.setattr("httpx.AsyncClient.post", faulty_post)
+    monkeypatch.setattr(SwitchBridge, "_dispatch_approval", faulty_dispatch)
 
     tasks = [
         stress_bridge.handle_room_message(
