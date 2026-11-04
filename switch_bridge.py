@@ -288,8 +288,12 @@ class SwitchBridge:
         elif text.startswith("`") and text.endswith("`") and len(text) >= 2:
             text = text[1:-1].strip()
 
-        # APPROVE <escrow_id> <change_hash>
-        m_app = re.match(r"^APPROVE\s+([a-zA-Z0-9_\-]+)\s+([a-fA-F0-9]{8})$", text, re.IGNORECASE)
+        # APPROVE <escrow_id> <change_hash> (supports optional surrounding <>, '', "", ``)
+        m_app = re.match(
+            r"^APPROVE\s+[`<\"']?([a-zA-Z0-9_\-]+)[`>\"']?\s+[`<\"']?([a-fA-F0-9]{8})[`>\"']?$",
+            text,
+            re.IGNORECASE,
+        )
         if m_app:
             return {
                 "action": "APPROVE",
@@ -298,16 +302,25 @@ class SwitchBridge:
             }
 
         # REJECT <escrow_id> <reason...>
-        m_rej = re.match(r"^REJECT\s+([a-zA-Z0-9_\-]+)(?:\s+(.+))?$", text, re.IGNORECASE)
+        m_rej = re.match(
+            r"^REJECT\s+[`<\"']?([a-zA-Z0-9_\-]+)[`>\"']?(?:\s+(.+))?$",
+            text,
+            re.IGNORECASE,
+        )
         if m_rej:
+            reason = (m_rej.group(2) or "Rejected by room operator").strip().strip("<>\"'`")
             return {
                 "action": "REJECT",
                 "escrow_id": m_rej.group(1),
-                "reason": m_rej.group(2) or "Rejected by room operator",
+                "reason": reason or "Rejected by room operator",
             }
 
         # PROMOTE <vaccine_id> <change_hash>
-        m_prom = re.match(r"^PROMOTE\s+([a-zA-Z0-9_\-]+)\s+([a-fA-F0-9]{8})$", text, re.IGNORECASE)
+        m_prom = re.match(
+            r"^PROMOTE\s+[`<\"']?([a-zA-Z0-9_\-]+)[`>\"']?\s+[`<\"']?([a-fA-F0-9]{8})[`>\"']?$",
+            text,
+            re.IGNORECASE,
+        )
         if m_prom:
             return {
                 "action": "PROMOTE",
@@ -316,7 +329,11 @@ class SwitchBridge:
             }
 
         # ROLLBACK <vaccine_id>
-        m_roll = re.match(r"^ROLLBACK\s+([a-zA-Z0-9_\-]+)$", text, re.IGNORECASE)
+        m_roll = re.match(
+            r"^ROLLBACK\s+[`<\"']?([a-zA-Z0-9_\-]+)[`>\"']?$",
+            text,
+            re.IGNORECASE,
+        )
         if m_roll:
             return {
                 "action": "ROLLBACK",
@@ -650,7 +667,9 @@ class PolicyBot:
         self.auto_promote = auto_promote
         self.reject_escrows: Dict[str, str] = reject_escrows or {}
         self.max_burn_threshold_usd = max_burn_threshold_usd
+        self.max_processed_escrows: int = 5_000
         self.processed_escrows: Set[str] = set()
+        self._processed_order: deque[str] = deque()
 
     async def on_room_message(self, sender: str, body: str, message_id: str) -> Optional[Dict[str, Any]]:
         """Processes room messages and takes scripted governance actions as @policy-bot."""
@@ -659,9 +678,11 @@ class PolicyBot:
             return None
 
         # Look for APPROVE prompt in markdown cards or text
-        # Patterns like: APPROVE <escrow_id> <change_hash>
+        # Patterns like: APPROVE <escrow_id> <change_hash> or with backticks/quotes
         approval_prompt = re.search(
-            r"APPROVE\s+([a-zA-Z0-9_\-]+)\s+([a-fA-F0-9]{8})", body, re.IGNORECASE
+            r"APPROVE\s+[`<\"']?([a-zA-Z0-9_\-]+)[`>\"']?\s+[`<\"']?([a-fA-F0-9]{8})[`>\"']?",
+            body,
+            re.IGNORECASE,
         )
         if approval_prompt:
             escrow_id = approval_prompt.group(1)
@@ -670,6 +691,10 @@ class PolicyBot:
             if escrow_id in self.processed_escrows:
                 return None
             self.processed_escrows.add(escrow_id)
+            self._processed_order.append(escrow_id)
+            if len(self._processed_order) > self.max_processed_escrows:
+                old_id = self._processed_order.popleft()
+                self.processed_escrows.discard(old_id)
 
             logger.info("[PolicyBot] Detected approval prompt for escrow '%s' with hash '%s'", escrow_id, change_hash)
 
@@ -699,7 +724,9 @@ class PolicyBot:
 
         # Look for PROMOTE prompt for vaccine promotion
         promote_prompt = re.search(
-            r"PROMOTE\s+([a-zA-Z0-9_\-]+)\s+([a-fA-F0-9]{8})", body, re.IGNORECASE
+            r"PROMOTE\s+[`<\"']?([a-zA-Z0-9_\-]+)[`>\"']?\s+[`<\"']?([a-fA-F0-9]{8})[`>\"']?",
+            body,
+            re.IGNORECASE,
         )
         if promote_prompt and self.auto_promote:
             vaccine_id = promote_prompt.group(1)
