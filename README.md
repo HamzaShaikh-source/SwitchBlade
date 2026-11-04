@@ -168,6 +168,15 @@ python bench/run_bench.py
 python run_demo.py --mode live --proxy-url http://localhost:8002
 ```
 
+### 5. Review the Web Control Plane
+```bash
+python -m uvicorn proxy:app --host 127.0.0.1 --port 8002
+```
+
+Open `http://127.0.0.1:8002/` for the five-page operator UI: Overview, Activity, Escrows, Vaccines, and Ledger. The pages read live proxy events and persisted ledger entries. The escrow page exposes context pruning, sandbox dry run, proposal creation, and hold-to-confirm approval or rejection.
+
+Start the seeded billing API in a second terminal with `python -m uvicorn mock_billing_api:app --host 127.0.0.1 --port 8001`. The proxy needs that service for a real dry run and vaccinated order execution. The bundled open-source React Bits effects can be rebuilt from `ui/effects` with `npm ci && npm run build`.
+
 ---
 
 ## 7. Team & Branch Ownership
