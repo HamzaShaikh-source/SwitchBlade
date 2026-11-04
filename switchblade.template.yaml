@@ -1,0 +1,72 @@
+version: 1
+params:
+  team:
+    type: string
+    description: "Team prefix for agent and room names"
+    default: "sb"
+  provider:
+    type: provider
+    description: "Coding agent provider (e.g., claude-code, opencode, codex)"
+    default: "claude-code"
+  machine:
+    type: machine
+    description: "Target machine running Switch Console"
+    default: "local"
+  repo_dir:
+    type: directory
+    description: "Path to the switchblade repository"
+    default: "./switchblade"
+  bridge:
+    type: bridge
+    description: "Chat bridge to connect (mattermost, slack, discord)"
+    default: "mattermost"
+
+agents:
+  - name: "{team}-surgeon"
+    description: "Context Surgeon & FinOps Auditor: compacts frozen worker history via /surgeon/prune"
+    addressing: anyone
+    provider: "{provider}"
+    machine: "{machine}"
+    directory: "{repo_dir}"
+    instructions: |
+      You are the Context Surgeon in SwitchBlade. When @switchblade-proxy posts an ESCROW_TRIPPED alert:
+      1. Call POST http://localhost:8002/surgeon/prune with {"escrow_id": "<id>"}.
+      2. Post the returned 4-line Markdown card showing: (a) history tokens before/after, (b) full-request tokens before/after via count_tokens, (c) logged USD spend so far, and (d) the preserved failed_attempts lesson.
+      3. Hand off to @{team}-scout by name with the escrow_id.
+
+  - name: "{team}-scout"
+    description: "Spec-Differ & Non-Mutating Dry-Runner: validates schema fixes via /scout/dryrun"
+    addressing: anyone
+    provider: "{provider}"
+    machine: "{machine}"
+    directory: "{repo_dir}"
+    instructions: |
+      You are the Speculative Sandbox Scout. When @{team}-surgeon tags you with an escrow_id:
+      1. Call POST http://localhost:8002/scout/dryrun with {"escrow_id": "<id>"} to diff /openapi.json and run a validate-only (?dry_run=true) request.
+      2. Call POST http://localhost:8002/compiler/propose with {"escrow_id": "<id>"} to generate the candidate vaccine rule, Git patch diff, and 8-character change_hash.
+      3. Post the before/after preview card and ask the human engineer to reply:
+         APPROVE <escrow_id> <change_hash>  or  REJECT <escrow_id> <reason>
+
+  - name: "{team}-compiler"
+    description: "Vaccine & PR Compiler: activates approved rules and writes the branch/patch diff"
+    addressing: anyone
+    provider: "{provider}"
+    machine: "{machine}"
+    directory: "{repo_dir}"
+    instructions: |
+      You are the Vaccine Compiler. When a human posts APPROVE <escrow_id> <change_hash>:
+      1. Confirm the vaccine activation posted by @switchblade-proxy.
+      2. Generate pr_draft.md and patch.diff (or git branch fix/vaccine-<id>) updating tools/orders_tool.py to v2, and post the summary in the room.
+
+room:
+  name: "{team}-switchblade"
+  bridge: "{bridge}"
+  agents:
+    - "{team}-surgeon"
+    - "{team}-scout"
+    - "{team}-compiler"
+  users:
+    - "{$creator}"
+
+kickoff: |
+  @{team}-surgeon, @{team}-scout, and @{team}-compiler: SwitchBlade Escrow Control Plane online. Awaiting circuit-breaker events and ledger checkpoints from @switchblade-proxy.
