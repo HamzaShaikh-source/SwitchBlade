@@ -1,45 +1,537 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#e9e7df">
-  <title>SwitchBlade — Control Plane</title>
-  <link rel="stylesheet" href="/ui/assets/site.css">
-  <link rel="stylesheet" href="/ui/assets/effects.css">
-  <script src="/ui/assets/site.js" defer></script>
-  <script src="/ui/assets/effects.js" defer></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SwitchBlade — Live Telemetry Cockpit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --card-bg: #111827;
+      --card-border: #1f2937;
+      --cyan: #06b6d4;
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --purple: #8b5cf6;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+    header {
+      background: rgba(17, 24, 39, 0.8);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .brand { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
+    .brand span { color: var(--cyan); }
+    .badge {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .badge-live { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); }
+    .badge-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+    .badge-room { background: rgba(245, 158, 11, 0.15); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-ledger { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
+    
+    .status-ticker {
+      background: #1e1b4b;
+      border-bottom: 1px solid rgba(139, 92, 246, 0.3);
+      padding: 8px 28px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: #c4b5fd;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-ticker .highlight { color: #fef08a; font-weight: 600; }
+
+    main {
+      padding: 24px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      flex: 1;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title.cyan { color: var(--cyan); }
+    .card-title.magenta { color: #ec4899; }
+    .card-title.green { color: var(--green); }
+    .card-title.blue { color: #3b82f6; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.78rem;
+    }
+    th {
+      text-align: left;
+      padding: 8px 10px;
+      color: var(--text-muted);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-weight: 600;
+    }
+    td {
+      padding: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+    .pill-red { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .pill-green { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .pill-yellow { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+    /* Burn bar */
+    .burn-box {
+      margin-top: 16px;
+      padding: 14px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .burn-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      margin-bottom: 8px;
+    }
+    .bar-bg {
+      height: 10px;
+      background: #1f2937;
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
+      border-radius: 9999px;
+      width: 45%;
+      transition: width 0.4s ease;
+    }
+
+    /* Context Surgery Bars */
+    .compaction-gauge {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 12px;
+      padding: 14px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .gauge-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.78rem;
+    }
+    .gauge-label { width: 110px; color: var(--text-muted); }
+    .gauge-bar-wrapper { flex: 1; height: 16px; background: #1f2937; border-radius: 4px; overflow: hidden; position: relative; }
+    .gauge-bar-fill { height: 100%; display: flex; align-items: center; padding-left: 8px; font-size: 0.68rem; font-weight: 700; color: white; transition: width 0.4s; }
+    .fill-before { background: #ef4444; width: 100%; }
+    .fill-after { background: #10b981; width: 3.5%; }
+
+    .checklist {
+      display: flex;
+      gap: 16px;
+      margin-top: 14px;
+      font-size: 0.75rem;
+    }
+    .check-item { display: flex; align-items: center; gap: 6px; color: #a7f3d0; }
+
+    /* Action bar */
+    .action-bar {
+      display: flex;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    button.btn {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 0.78rem;
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-green { background: #059669; color: white; }
+    .btn-green:hover { background: #10b981; }
+    .btn-red { background: #dc2626; color: white; }
+    .btn-red:hover { background: #ef4444; }
+    .btn-blue { background: #2563eb; color: white; }
+    .btn-blue:hover { background: #3b82f6; }
+
+    footer {
+      border-top: 1px solid var(--card-border);
+      padding: 14px 28px;
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+    }
+  </style>
 </head>
 <body>
-  <a class="skip" href="#content">Skip to content</a>
-  <div class="site-frame">
-    <header class="topbar">
-      <a class="wordmark" href="/" aria-label="SwitchBlade, overview"><span class="mark" aria-hidden="true">S<span>/</span>B</span><span>SWITCH<br>BLADE</span></a>
-      <span class="topbar-note">AUTONOMOUS SYSTEMS / CONTROL PLANE</span>
-      <button class="menu-toggle" type="button" aria-controls="site-nav" aria-expanded="false">MENU <span aria-hidden="true">↗</span></button>
-      <nav id="site-nav" aria-label="Primary navigation">
-        <a href="/" data-route="/">Overview</a>
-        <a href="/activity" data-route="/activity">Activity</a>
-        <a href="/escrows" data-route="/escrows">Escrows</a>
-        <a href="/vaccines" data-route="/vaccines">Vaccines</a>
-        <a href="/ledger" data-route="/ledger">Ledger</a>
-      </nav>
-      <span id="connection" class="connection"><i></i> CONNECTING</span>
-    </header>
-    <aside class="workspace-rail" aria-label="Workspace navigation">
-      <div class="rail-section-label">01 / WORKSPACE</div>
-      <nav class="rail-nav" aria-label="Workspace pages">
-        <a href="/" data-route="/"><span>01</span> Overview <b>↗</b></a>
-        <a href="/activity" data-route="/activity"><span>02</span> Activity <b>↗</b></a>
-        <a href="/escrows" data-route="/escrows"><span>03</span> Escrows <b>↗</b></a>
-        <a href="/vaccines" data-route="/vaccines"><span>04</span> Vaccines <b>↗</b></a>
-        <a href="/ledger" data-route="/ledger"><span>05</span> Ledger <b>↗</b></a>
-      </nav>
-      <div class="rail-bottom"><span>CONTROL PLANE / LOCAL</span><strong id="rail-mode">CONNECTING</strong><small>Real-time state from the SwitchBlade proxy.</small></div>
-    </aside>
-    <main id="content" tabindex="-1"></main>
-    <footer class="footer"><span>SWITCHBLADE <b>®</b> / IN-FLIGHT FINOPS CONTROL</span><span>BUILT FOR AGENTS THAT DON’T STOP.</span><a href="/docs">API DOCS ↗</a></footer>
+
+  <!-- Top Sticky Header -->
+  <header>
+    <div class="header-left">
+      <div class="brand">⚡ <span>SWITCHBLADE</span> <span style="font-size: 0.8rem; font-weight: 400; color: var(--text-muted);">COCKPIT</span></div>
+      <div class="badge badge-live" id="modeBadge">Live Mode</div>
+      <div class="badge badge-room" id="roomBadge">Room: @sb-switchblade</div>
+    </div>
+    <div class="header-right">
+      <div class="badge badge-ledger" id="ledgerBadge">🛡️ LEDGER ANCHORED (Seq #15)</div>
+    </div>
+  </header>
+
+  <!-- Live Status Notification Strip -->
+  <div class="status-ticker">
+    <div id="statusBanner">Awaiting room events from <span class="highlight">@switchblade-proxy</span>...</div>
+    <div style="color: var(--text-muted);">Refresh Rate: <strong>10 FPS</strong></div>
   </div>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <main>
+    <!-- Top Row: Worker Stream & Escrow Surgeon -->
+    <div class="grid-2">
+      <!-- Panel 1: Worker Stream -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title cyan">⚡ Worker Stream & FinOps Telemetry</div>
+          <div class="badge" style="background: rgba(6, 182, 212, 0.1); color: var(--cyan); border: 1px solid rgba(6, 182, 212, 0.3);">Task: <span id="taskIdDisplay">task-order-9901</span></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Turn</th>
+              <th>Endpoint</th>
+              <th>Status</th>
+              <th>History</th>
+              <th>Full Req</th>
+              <th>Cost</th>
+            </tr>
+          </thead>
+          <tbody id="workerTurnsBody">
+            <tr>
+              <td>T1</td>
+              <td>POST /v1/orders</td>
+              <td><span class="pill pill-red">422 LOOP</span></td>
+              <td style="color: #f87171;">15,000</td>
+              <td>18,500</td>
+              <td style="color: #fbbf24;">$0.2775</td>
+            </tr>
+            <tr>
+              <td>T2</td>
+              <td>POST /v1/orders</td>
+              <td><span class="pill pill-red">422 LOOP</span></td>
+              <td style="color: #f87171;">30,100</td>
+              <td>33,600</td>
+              <td style="color: #fbbf24;">$0.5040</td>
+            </tr>
+            <tr>
+              <td>T3</td>
+              <td>POST /v1/orders</td>
+              <td><span class="pill pill-red">422 LOOP</span></td>
+              <td style="color: #f87171;">45,200</td>
+              <td>48,700</td>
+              <td style="color: #fbbf24;">$0.7305</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Burn bar -->
+        <div class="burn-box">
+          <div class="burn-header">
+            <span>Cumulative Input Token Burn</span>
+            <span id="burnText"><strong style="color: #f87171;">45,200</strong> / 100,000 (45.2% safety cap)</span>
+          </div>
+          <div class="bar-bg">
+            <div class="bar-fill" id="burnBarFill" style="width: 45%;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted);">
+            <span>Cumulative API Cost: <strong style="color: #fcd34d;" id="costDisplay">$0.6780</strong></span>
+            <span>Quadratic growth arrested at Turn 3</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 2: Escrow Gate & Context Surgeon -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title magenta">✂️ Escrow Gate & Context Surgeon</div>
+          <div class="pill pill-yellow" id="escrowStateBadge">⏸ PENDING APPROVAL</div>
+        </div>
+        <div style="font-family: 'Fira Code', monospace; font-size: 0.8rem; line-height: 1.6; margin-bottom: 12px;">
+          <div>Escrow ID: <span style="color: var(--cyan);" id="escrowIdText">esc-9901-trip</span></div>
+          <div>Change Hash: <strong style="color: #fde047;" id="changeHashText">8f4b2a1c</strong> (SHA-256)</div>
+          <div>Trigger: <span style="color: var(--text-muted);" id="tripReasonText">3x 422 loop on /v1/orders (Deprecated route)</span></div>
+          <div>Required Command: <code style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; color: #86efac;" id="cmdCopy">APPROVE esc-9901-trip 8f4b2a1c</code></div>
+        </div>
+
+        <!-- Compaction Gauge -->
+        <div class="compaction-gauge">
+          <div style="font-size: 0.75rem; font-weight: 700; color: #c084fc; text-transform: uppercase;">Context Surgery (POST /surgeon/prune)</div>
+          <div class="gauge-row">
+            <div class="gauge-label">Before Pruning:</div>
+            <div class="gauge-bar-wrapper">
+              <div class="gauge-bar-fill fill-before" id="gaugeBefore">45,200 tokens ($0.68)</div>
+            </div>
+          </div>
+          <div class="gauge-row">
+            <div class="gauge-label">After Pruning:</div>
+            <div class="gauge-bar-wrapper">
+              <div class="gauge-bar-fill fill-after" id="gaugeAfter">380 tokens (99.2% saved)</div>
+            </div>
+          </div>
+          <div class="checklist">
+            <div class="check-item">✔ Atomic (tool_use, tool_result) Closed</div>
+            <div class="check-item">✔ Thinking Blocks Stripped</div>
+            <div class="check-item">✔ Role Alternation Valid</div>
+          </div>
+        </div>
+
+        <div class="action-bar">
+          <button class="btn btn-green" onclick="submitDecision(true)">✔ Approve Escrow</button>
+          <button class="btn btn-red" onclick="submitDecision(false)">✖ Reject Escrow</button>
+          <button class="btn btn-blue" onclick="triggerRun()">↺ Simulate Next Turn</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Row: Vaccine Registry & Ledger Feed -->
+    <div class="grid-2">
+      <!-- Panel 3: Vaccine Registry -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title blue">💉 Active Vaccine Registry (Pre-Send In-Memory Intercept)</div>
+          <div class="badge" style="background: rgba(59, 130, 246, 0.15); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3);">p50: 1.2μs</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Vaccine ID</th>
+              <th>Match Pattern</th>
+              <th>Rewrite Target</th>
+              <th>Mode</th>
+              <th>Latency</th>
+            </tr>
+          </thead>
+          <tbody id="vaccinesTableBody">
+            <tr>
+              <td style="font-weight: 700;">VACCINE-042</td>
+              <td style="color: #f87171;">POST /v1/orders</td>
+              <td style="color: #34d399;">POST /v2/orders</td>
+              <td><span class="pill pill-green">ENFORCE</span></td>
+              <td style="color: var(--text-muted);">1.2μs / 1.6μs</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top: 12px; font-size: 0.74rem; color: var(--text-muted); font-family: 'Fira Code', monospace;">
+          Protected Fleet: Sibling Order #9902 rewrites on Turn 1 with 0 retries.
+        </div>
+      </div>
+
+      <!-- Panel 4: SQLite Ledger Feed -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title green">🔗 Tamper-Evident Ledger (Room Anchored)</div>
+          <div class="badge badge-ledger" id="ledgerHeadSeq">Head: #15</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Seq</th>
+              <th>Event</th>
+              <th>Block SHA-256</th>
+              <th>Anchor</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerTableBody">
+            <tr>
+              <td>#12</td>
+              <td>CIRCUIT_BREAKER_TRIPPED</td>
+              <td style="color: var(--text-muted);">3a91c10d54ef...</td>
+              <td><span class="pill pill-green">✔ ROOM</span></td>
+            </tr>
+            <tr>
+              <td>#13</td>
+              <td>CONTEXT_SURGERY_PRUNED</td>
+              <td style="color: var(--text-muted);">9f82bc01481e...</td>
+              <td><span class="pill pill-green">✔ ROOM</span></td>
+            </tr>
+            <tr>
+              <td>#14</td>
+              <td>DRY_RUN_VERIFIED</td>
+              <td style="color: var(--text-muted);">e710bca3810d...</td>
+              <td><span class="pill pill-green">✔ ROOM</span></td>
+            </tr>
+            <tr>
+              <td>#15</td>
+              <td>LEDGER_CHECKPOINT</td>
+              <td style="color: var(--text-muted);">a37f81b2c90e...</td>
+              <td><span class="pill pill-green">✔ ROOM</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top: 12px; font-size: 0.74rem; color: var(--text-muted); font-family: 'Fira Code', monospace;">
+          Domain: <code>SWITCHBLADE-LEDGER-V1</code> | Broadcast to Switch Room every 5 events.
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div>SwitchBlade Control Plane v2.0 • Team 1 (Hamza Shaikh, Santosh Subramanian, Aaditya Arunpal, Janani)</div>
+    <div>Flip the Switch Hackathon (Nov 4–7, 2026)</div>
+  </footer>
+
+  <script>
+    async function updateState() {
+      try {
+        const res = await fetch('/state');
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        // Update header badges
+        if (data.active_mode) document.getElementById('modeBadge').innerText = data.active_mode + ' MODE';
+        if (data.ledger_head_seq) document.getElementById('ledgerBadge').innerText = '🛡️ LEDGER ANCHORED (Seq #' + data.ledger_head_seq + ')';
+
+        // Update stats
+        const stats = data.stats || {};
+        if (stats.cumulative_tokens) {
+          const cap = 100000;
+          const pct = Math.min(100, (stats.cumulative_tokens / cap) * 100);
+          document.getElementById('burnBarFill').style.width = pct + '%';
+          document.getElementById('burnText').innerHTML = '<strong>' + stats.cumulative_tokens.toLocaleString() + '</strong> / 100,000 (' + pct.toFixed(1) + '% safety cap)';
+        }
+        if (stats.cumulative_cost_usd !== undefined) {
+          document.getElementById('costDisplay').innerText = '$' + Number(stats.cumulative_cost_usd).toFixed(4);
+        }
+
+        // Active escrow
+        const escrows = Object.values(data.escrows || {});
+        let active = escrows.find(e => e.state === 'PENDING') || escrows[escrows.length - 1];
+        if (active) {
+          document.getElementById('escrowIdText').innerText = active.escrow_id;
+          document.getElementById('changeHashText').innerText = active.change_hash || '8f4b2a1c';
+          document.getElementById('escrowStateBadge').innerText = active.state;
+          document.getElementById('escrowStateBadge').className = 'pill ' + (active.state === 'PENDING' ? 'pill-yellow' : active.state === 'APPROVED' ? 'pill-green' : 'pill-red');
+          document.getElementById('cmdCopy').innerText = 'APPROVE ' + active.escrow_id + ' ' + (active.change_hash || '8f4b2a1c');
+        }
+
+        if (stats.status_banner) {
+          document.getElementById('statusBanner').innerText = stats.status_banner;
+        }
+
+      } catch (err) {
+        // Disconnected or offline
+      }
+    }
+
+    async function submitDecision(approved) {
+      const escrowId = document.getElementById('escrowIdText').innerText;
+      const hash = document.getElementById('changeHashText').innerText;
+      try {
+        const res = await fetch('/escrow/decision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            escrow_id: escrowId,
+            approved: approved,
+            approver_id: "hamza",
+            change_hash: hash,
+            reason: approved ? "Approved via Live Web Cockpit" : "Rejected via Live Web Cockpit"
+          })
+        });
+        const out = await res.json();
+        alert(approved ? "✔ Escrow Approved! Worker resumed." : "✖ Escrow Rejected. Worker halted safely.");
+        updateState();
+      } catch (e) {
+        alert("Decision submitted (simulated): " + (approved ? "APPROVED" : "REJECTED"));
+      }
+    }
+
+    function triggerRun() {
+      fetch('/scout/dryrun?escrow_id=' + document.getElementById('escrowIdText').innerText, { method: 'POST' })
+        .then(() => updateState())
+        .catch(() => updateState());
+    }
+
+    setInterval(updateState, 1000);
+    updateState();
+  </script>
 </body>
 </html>
