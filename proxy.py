@@ -30,7 +30,7 @@ import httpx
 import uvicorn
 from fastapi import FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from ledger import LedgerManager
 from schemas import (
@@ -463,6 +463,19 @@ escrow_mgr = EscrowManager(ledger=ledger_mgr)
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+@app.get("/", response_class=HTMLResponse, tags=["UI"])
+async def get_dashboard():
+    """Serves the interactive SwitchBlade Web Cockpit frontend."""
+    dashboard_path = os.path.join(os.path.dirname(__file__), "ui", "dashboard.html")
+    if os.path.exists(dashboard_path):
+        with open(dashboard_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(
+        content="<h1>SwitchBlade Control Plane</h1><p>ui/dashboard.html not found.</p>",
+        status_code=404,
+    )
+
 
 @app.get("/health", tags=["System"])
 async def health_check():
