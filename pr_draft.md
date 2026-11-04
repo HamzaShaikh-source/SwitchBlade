@@ -13,5 +13,5 @@ Upstream OpenAPI drift was detected: `/v1/orders` is deprecated, causing infinit
 
 ## Change Hash & Approval Command
 ```bash
-APPROVE escrow_test_042 9372001a
+APPROVE escrow_test_042 7dae6cd3
 ```
