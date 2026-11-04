@@ -1,0 +1,11 @@
+--- a/tools/orders_tool.py
++++ b/tools/orders_tool.py
+@@ -44,7 +44,7 @@
+     amount: Optional[float] = None,
+     customer: Optional[str] = None,
+     base_url: str = "http://localhost:8001",
+-    endpoint: str = "/v1/orders",
++    endpoint: str = "/v2/orders",
+     proxy_url: Optional[str] = None,
+     custom_headers: Optional[Dict[str, str]] = None,
+     timeout: float = 2.0,
