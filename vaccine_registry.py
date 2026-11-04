@@ -384,10 +384,15 @@ def generate_compiler_proposal(
         original_code = f.read()
 
     # Upgraded v2 implementation
-    upgraded_code = original_code.replace(
-        'target_url = f"{base_url.rstrip(\'/\')}/v1/orders"',
-        'target_url = f"{base_url.rstrip(\'/\')}/v2/orders"',
-    )
+    upgraded_code = original_code
+    if 'endpoint: str = "/v1/orders"' in upgraded_code:
+        upgraded_code = upgraded_code.replace(
+            'endpoint: str = "/v1/orders"',
+            'endpoint: str = "/v2/orders"',
+        )
+    elif '/v1/orders' in upgraded_code:
+        upgraded_code = upgraded_code.replace('/v1/orders', '/v2/orders')
+
     if "X-Tenant-ID" not in upgraded_code:
         upgraded_code = upgraded_code.replace(
             'headers = {"Content-Type": "application/json"}',

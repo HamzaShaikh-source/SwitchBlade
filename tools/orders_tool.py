@@ -4,7 +4,8 @@ Owned by Janani (branch: feat/janani-agents-vaccine)
 
 Initial implementation:
 Targets legacy /v1/orders endpoint (which triggers 422 diagnostic loops in unpatched environments).
-Later patched to /v2/orders by Vaccine Compiler (fix/vaccine-042-orders-v2).
+Can be intercepted and rewritten to /v2/orders by Vaccine Registry pre-send rules,
+or permanently patched by Vaccine Compiler (fix/vaccine-042-orders-v2).
 """
 
 from typing import Any, Dict, Optional
@@ -43,6 +44,7 @@ def sync_customer_order(
     amount: Optional[float] = None,
     customer: Optional[str] = None,
     base_url: str = "http://localhost:8001",
+    endpoint: str = "/v1/orders",
     proxy_url: Optional[str] = None,
     custom_headers: Optional[Dict[str, str]] = None,
     timeout: float = 2.0,
@@ -63,13 +65,15 @@ def sync_customer_order(
     if custom_headers:
         headers.update(custom_headers)
 
+    target_path = endpoint if endpoint.startswith("/") else f"/{endpoint}"
+
     # If proxy_url is specified, route via proxy execution endpoint
     if proxy_url:
         target_url = f"{proxy_url.rstrip('/')}/proxy/execute_tool"
         req_body = {
             "tool_name": "sync_customer_order",
             "arguments": payload,
-            "target_url": f"{base_url.rstrip('/')}/v1/orders",
+            "target_url": f"{base_url.rstrip('/')}{target_path}",
             "http_method": "POST",
             "headers": headers,
         }
@@ -91,8 +95,8 @@ def sync_customer_order(
                 "detail": f"Failed to connect to proxy at {target_url}: {e}",
             }
 
-    # Direct call to legacy v1 endpoint
-    target_url = f"{base_url.rstrip('/')}/v1/orders"
+    # Direct call to billing endpoint
+    target_url = f"{base_url.rstrip('/')}{target_path}"
     try:
         if http_client:
             resp = http_client.post(target_url, json=payload, headers=headers)

@@ -4,6 +4,7 @@ Owned by Janani (branch: feat/janani-agents-vaccine)
 
 Autonomous order settlement worker executing sync_customer_order through
 Santosh's proxy (:8002/proxy/execute_tool) using the official Anthropic SDK.
+Supports pre-send Zero-Retry Turn 1 rewrite via VaccineRegistry.
 """
 
 from __future__ import annotations
@@ -46,6 +47,7 @@ class WorkerAgent:
         api_key: Optional[str] = None,
         http_client: Optional[httpx.Client] = None,
         tool_executor: Optional[Callable[..., Dict[str, Any]]] = None,
+        vaccine_registry: Optional[Any] = None,
     ):
         self.proxy_url = os.environ.get("SWITCHBLADE_PROXY_URL", proxy_url).rstrip("/")
         self.mock_api_url = os.environ.get("MOCK_BILLING_API_URL", mock_api_url).rstrip("/")
@@ -54,6 +56,7 @@ class WorkerAgent:
         self.client = anthropic.Anthropic(api_key=self.api_key) if (anthropic and self.api_key) else None
         self.http_client = http_client
         self.tool_executor = tool_executor
+        self.vaccine_registry = vaccine_registry
 
     def execute_tool_call(
         self,
@@ -62,9 +65,29 @@ class WorkerAgent:
         tool_use_id: str,
         context: TaskContext,
     ) -> Dict[str, Any]:
-        """Routes tool execution through custom executor, proxy, or fallback."""
+        """Routes tool execution through custom executor, proxy, or direct vaccinated execution."""
         if self.tool_executor:
             return self.tool_executor(tool_name, tool_input, tool_use_id, context)
+
+        # Pre-send Zero-Retry Vaccine Interception
+        target_path = "/v1/orders"
+        custom_headers: Dict[str, str] = {}
+        if self.vaccine_registry:
+            application = self.vaccine_registry.match_and_apply(
+                tool_name=tool_name,
+                http_method="POST",
+                path=target_path,
+                task_context=context,
+            )
+            if application.applied:
+                target_path = application.rewritten_path or target_path
+                custom_headers.update(application.injected_headers)
+                if "Idempotency-Key" not in custom_headers:
+                    custom_headers["Idempotency-Key"] = f"idem-key-{context.task_id}-{context.order_id}"
+                logger.info(
+                    f"Pre-send vaccine {application.vaccine_id} applied: "
+                    f"rewrote to {target_path} with headers {list(custom_headers.keys())}"
+                )
 
         try:
             client = self.http_client or httpx.Client(timeout=1.5)
@@ -88,6 +111,8 @@ class WorkerAgent:
             amount=tool_input.get("amount", context.amount),
             customer=tool_input.get("customer", context.customer),
             base_url=self.mock_api_url,
+            endpoint=target_path,
+            custom_headers=custom_headers if custom_headers else None,
             http_client=self.http_client,
         )
 
@@ -107,6 +132,7 @@ class WorkerAgent:
         turn = 0
         escrow_tripped = False
         last_escrow_id: Optional[str] = None
+        task_settled = False
 
         while turn < max_turns:
             turn += 1
@@ -156,6 +182,12 @@ class WorkerAgent:
                     last_escrow_id = result.get("escrow_id")
                     logger.warning(f"Circuit breaker tripped on Turn {turn}! Escrow ID: {last_escrow_id}")
 
+                # Check if settled
+                if isinstance(result, dict):
+                    data = result.get("data") if "data" in result else result
+                    if isinstance(data, dict) and data.get("status") == "settled":
+                        task_settled = True
+
                 user_results.append(
                     {
                         "type": "tool_result",
@@ -166,7 +198,7 @@ class WorkerAgent:
 
             messages.append({"role": "user", "content": user_results})
 
-            if escrow_tripped:
+            if escrow_tripped or task_settled:
                 break
 
         return {
@@ -175,6 +207,7 @@ class WorkerAgent:
             "turns_taken": turn,
             "escrow_tripped": escrow_tripped,
             "escrow_id": last_escrow_id,
+            "settled": task_settled,
             "message_history": messages,
         }
 

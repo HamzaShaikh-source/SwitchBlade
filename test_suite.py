@@ -7,6 +7,11 @@ Runs automated validation for:
 - Context Surgeon atomic pair validity, thinking stripper, and token compaction [Milestone J2]
 - Worker Agent tool execution loop and Anthropic message formatting [Milestone J2]
 - Vaccine Registry 4 security controls, two-stage lifecycle, Scout dry-run, and Compiler Safe PR generator [Milestone J3]
+- Edge Cases & A/B Verifications [Milestone J4]:
+    (1) Orphaned tool_use is impossible after prune_context()
+    (2) Missing task.tenant_id fails closed (Confused Deputy defense)
+    (3) dry_run=true does not mark Order #9901 settled
+    (4) Order #9902 settles on Turn 1 via VACCINE-042 (Control vs Guarded)
 """
 
 from tests.test_mock_billing_api import (
@@ -44,6 +49,13 @@ from tests.test_vaccine_registry import (
     test_scout_diff_and_dryrun_logic,
     test_compiler_propose_and_safe_git_branch_generator,
     tmp_registry,
+)
+
+from tests.test_milestone_4 import (
+    test_verification_1_orphaned_tool_use_impossible_after_prune_context,
+    test_verification_2_missing_tenant_id_fails_closed,
+    test_verification_3_dry_run_does_not_mark_order_9901_settled,
+    test_verification_4_order_9902_settles_on_turn_1_via_vaccine_042,
 )
 
 if __name__ == "__main__":
