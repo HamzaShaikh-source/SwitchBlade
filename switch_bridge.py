@@ -29,8 +29,9 @@ import os
 import re
 import sys
 import uuid
+from collections import deque
 from enum import Enum
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Set
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple
 
 import httpx
 
@@ -118,7 +119,9 @@ class SwitchBridge:
         self.connection_id = str(uuid.uuid4())
         self.cursor = 0
         self.generation: Optional[int] = None
+        self.max_seen_messages: int = 10_000
         self.seen_message_ids: Set[str] = set()
+        self._seen_message_order: deque[str] = deque()
         self.is_running = False
         self._ws = None
 
@@ -250,14 +253,16 @@ class SwitchBridge:
     # Room Command Parsing & Governance Routing
     # -----------------------------------------------------------------------
 
-    def clean_sender(self, sender: str) -> str:
+    def clean_sender(self, sender: Optional[str]) -> str:
         """Strips Switch prefixes/suffixes: @hamza:switch.local -> hamza."""
-        sender = sender.strip().lstrip("@")
+        if not sender:
+            return ""
+        sender = str(sender).strip().lstrip("@")
         if ":" in sender:
             sender = sender.split(":")[0]
         return sender
 
-    def parse_command(self, body: str) -> Optional[Dict[str, Any]]:
+    def parse_command(self, body: Optional[str]) -> Optional[Dict[str, Any]]:
         """
         Parses room commands from message text.
         Supported commands:
@@ -266,6 +271,9 @@ class SwitchBridge:
           - PROMOTE <vaccine_id> <change_hash>
           - ROLLBACK <vaccine_id>
         """
+        if not body or not isinstance(body, str):
+            return None
+
         text = body.strip()
 
         # Strip markdown code formatting (``` or `)
@@ -335,6 +343,10 @@ class SwitchBridge:
             logger.debug("Skipping already processed message_id: %s", message_id)
             return None
         self.seen_message_ids.add(message_id)
+        self._seen_message_order.append(message_id)
+        if len(self._seen_message_order) > self.max_seen_messages:
+            oldest = self._seen_message_order.popleft()
+            self.seen_message_ids.discard(oldest)
 
         user = self.clean_sender(sender)
         logger.info("Message from '%s' (addressed=%s): %s", user, addressed, body)
@@ -506,7 +518,15 @@ class SwitchBridge:
                     logger.info("Connected to Switch WebSocket.")
 
                     async for raw_msg in ws:
-                        frame = json.loads(raw_msg)
+                        try:
+                            frame = json.loads(raw_msg)
+                        except Exception as json_err:
+                            logger.warning("Received invalid non-JSON frame: %s (%s)", raw_msg, json_err)
+                            continue
+
+                        if not isinstance(frame, dict):
+                            continue
+
                         frame_type = frame.get("type")
 
                         # 1. Answer every ping immediately with pong carrying cursor
@@ -537,10 +557,15 @@ class SwitchBridge:
 
                         # 4. Domain event: message
                         elif frame_type == "message":
-                            payload = frame.get("payload", {})
+                            payload = frame.get("payload")
+                            if not isinstance(payload, dict):
+                                payload = {}
                             msg_seq = frame.get("id")
                             if msg_seq:
-                                self.cursor = max(self.cursor, int(msg_seq))
+                                try:
+                                    self.cursor = max(self.cursor, int(msg_seq))
+                                except (ValueError, TypeError):
+                                    pass
 
                             sender = payload.get("sender", "")
                             body = payload.get("body", "")
