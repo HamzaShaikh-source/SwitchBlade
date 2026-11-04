@@ -3,10 +3,9 @@ SwitchBlade Test Suite
 Owned by Janani (branch: feat/janani-agents-vaccine)
 
 Runs automated validation for:
-- Seeded Idempotent Mock Billing API (:8001)
-- Context Surgeon atomic pair validity and token compaction
-- Vaccine Registry security controls and tenant isolation
-- Dry run non-mutating validation vs live settlement
+- Seeded Idempotent Mock Billing API (:8001) [Milestone J1]
+- Context Surgeon atomic pair validity, thinking stripper, and token compaction [Milestone J2]
+- Worker Agent tool execution loop and Anthropic message formatting [Milestone J2]
 """
 
 from tests.test_mock_billing_api import (
@@ -23,6 +22,16 @@ from tests.test_mock_billing_api import (
     test_orders_tool_definition_and_execution,
     reset_api,
     client,
+)
+
+from tests.test_context_surgeon import (
+    test_strip_thinking_blocks,
+    test_validate_message_history_valid,
+    test_validate_message_history_role_alternation_violation,
+    test_validate_message_history_orphaned_tool_use,
+    test_validate_message_history_orphaned_tool_result,
+    test_context_surgery_atomic_pruning_and_token_reduction,
+    test_worker_agent_simulation_and_history_validity,
 )
 
 if __name__ == "__main__":

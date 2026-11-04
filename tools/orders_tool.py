@@ -45,7 +45,8 @@ def sync_customer_order(
     base_url: str = "http://localhost:8001",
     proxy_url: Optional[str] = None,
     custom_headers: Optional[Dict[str, str]] = None,
-    timeout: float = 10.0,
+    timeout: float = 2.0,
+    http_client: Optional[httpx.Client] = None,
 ) -> Dict[str, Any]:
     """
     Executes order settlement.
@@ -72,18 +73,40 @@ def sync_customer_order(
             "http_method": "POST",
             "headers": headers,
         }
-        with httpx.Client(timeout=timeout) as client:
-            resp = client.post(target_url, json=req_body)
+        try:
+            if http_client:
+                resp = http_client.post(target_url, json=req_body)
+            else:
+                with httpx.Client(timeout=timeout) as client:
+                    resp = client.post(target_url, json=req_body)
             return {
                 "status_code": resp.status_code,
                 "data": resp.json() if resp.headers.get("content-type", "").startswith("application/json") else resp.text,
             }
+        except httpx.RequestError as e:
+            logger.warning(f"Connection error to proxy at {target_url}: {e}")
+            return {
+                "status_code": 503,
+                "error": "PROXY_UNAVAILABLE",
+                "detail": f"Failed to connect to proxy at {target_url}: {e}",
+            }
 
     # Direct call to legacy v1 endpoint
     target_url = f"{base_url.rstrip('/')}/v1/orders"
-    with httpx.Client(timeout=timeout) as client:
-        resp = client.post(target_url, json=payload, headers=headers)
+    try:
+        if http_client:
+            resp = http_client.post(target_url, json=payload, headers=headers)
+        else:
+            with httpx.Client(timeout=timeout) as client:
+                resp = client.post(target_url, json=payload, headers=headers)
         return {
             "status_code": resp.status_code,
             "data": resp.json() if resp.headers.get("content-type", "").startswith("application/json") else resp.text,
+        }
+    except httpx.RequestError as e:
+        logger.warning(f"Connection error to billing api at {target_url}: {e}")
+        return {
+            "status_code": 503,
+            "error": "BILLING_API_UNAVAILABLE",
+            "detail": f"Failed to connect to billing API at {target_url}: {e}",
         }
