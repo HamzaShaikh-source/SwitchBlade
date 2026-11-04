@@ -144,7 +144,12 @@ cd SwitchBlade
 pip install -r requirements.txt
 ```
 
-### 1. Run Terminal Telemetry Cockpit (Selftest Mode)
+### 1. Verify Clean-Clone Reproduction (< 10s Spin-Up)
+```bash
+python verify_clean_clone.py
+```
+
+### 2. Run Terminal Telemetry Cockpit (Selftest Mode)
 ```bash
 # Static snapshot view
 python run_demo.py --mode selftest
@@ -153,17 +158,17 @@ python run_demo.py --mode selftest
 python run_demo.py --mode selftest --animate
 ```
 
-### 2. View Benchmark Comparison
+### 3. View Benchmark Comparison
 ```bash
 python run_demo.py --show-bench
 ```
 
-### 3. Run Benchmark Suite
+### 4. Run Benchmark Suite
 ```bash
 python bench/run_bench.py
 ```
 
-### 4. Run Live Telemetry with Proxy (:8002)
+### 5. Run Live Telemetry with Proxy (:8002)
 ```bash
 python run_demo.py --mode live --proxy-url http://localhost:8002
 ```
@@ -176,7 +181,7 @@ python run_demo.py --mode live --proxy-url http://localhost:8002
 | :--- | :--- | :--- | :--- |
 | **Hamza Shaikh** | `feat/hamza-cockpit-ui` | Frontend, Telemetry UI & Demo Lead | `run_demo.py`, `ui/cockpit.py`, `ui/room_cards.py`, `bench/run_bench.py`, `bench/results.json`, `README.md` |
 | **Santosh Subramanian** | `feat/santosh-proxy-ledger` | Core Runtime, Escrow & Ledger Lead | `schemas.py`, `proxy.py`, `ledger.py`, `verify_ledger.py` |
-| **Aaditya Arunpal** | `feat/aaditya-switch-bridge` | Switch WebSocket & Protocol Lead | `switchblade.template.yaml`, `switch_bridge.py`, `.env.example` |
+| **Aaditya Arunpal** | `feat/aaditya-switch-bridge` | Switch WebSocket & Protocol Lead | `switchblade.template.yaml`, `switch_bridge.py`, `.env.example`, `verify_clean_clone.py` |
 | **Janani** | `feat/janani-agents-vaccine` | AI Agents, Context Surgery & Vaccine Lead | `context_surgeon.py`, `vaccine_registry.py`, `worker_agent.py`, `mock_billing_api.py`, `test_suite.py` |
 
 ---

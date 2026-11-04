@@ -62,3 +62,7 @@ desktop.ini
 
 # Benchmark scratch
 bench/results.json.tmp
+
+# Agent skill mounts
+.agents/
+.claude/
