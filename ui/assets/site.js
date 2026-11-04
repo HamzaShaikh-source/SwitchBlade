@@ -23,7 +23,47 @@ const heading = (n, title, href, label) => `<div class="section-head"><div><div 
 const header = (n, title, copy) => `<header class="page-header reveal" style="padding: 40px 0 25px; border-bottom: 1px solid var(--line);"><div><div class="eyebrow" style="font-family:'DM Mono'; font-size:11px; color:var(--acid); letter-spacing:.08em; margin-bottom:8px;">${n} // ${title.toUpperCase()}</div><h1 class="page-title" style="font-family:'Space Grotesk'; font-size:clamp(36px,5vw,64px); letter-spacing:-.05em; margin:0; color:#fff;">${title}<em>.</em></h1></div><p class="page-intro" style="color:var(--muted); font-size:14px; margin-top:10px; max-width:600px;">${copy}</p></header>`;
 const table = (heads, rows) => `<div class="table-wrap"><table class="data-table"><thead><tr>${heads.map(h => `<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
 
-let state = null, events = [], entries = [], bench = null, online = false, busy = false, lastKey = '', toastTimer;
+// ---------------------------------------------------------------------------
+// AUDIO SYNTHESIZER (Web Audio API)
+// ---------------------------------------------------------------------------
+const AudioFX = {
+  ctx: null,
+  muted: false,
+  init() {
+    if (!this.ctx && typeof AudioContext !== 'undefined') {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+  },
+  playBeep(freq = 600, type = 'sine', duration = 0.08, gainVal = 0.08) {
+    if (this.muted) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+      gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + duration);
+    } catch (e) {}
+  },
+  click() { this.playBeep(1200, 'triangle', 0.03, 0.05); },
+  trip() {
+    this.playBeep(220, 'sawtooth', 0.28, 0.12);
+    setTimeout(() => this.playBeep(180, 'sawtooth', 0.28, 0.12), 80);
+  },
+  success() {
+    this.playBeep(520, 'sine', 0.08, 0.07);
+    setTimeout(() => this.playBeep(780, 'sine', 0.12, 0.09), 70);
+  }
+};
+
+let state = null, events = [], entries = [], online = false, busy = false, lastKey = '', toastTimer;
 
 function notice(message) {
   const el = $('#toast');
@@ -47,30 +87,136 @@ function feed(items, count = 8) {
 }
 
 // ---------------------------------------------------------------------------
-// 00. MASTER LANDING PAGE (React Bits Hero, Spotlight Cards, CountUp, Slats)
+// SIMULATOR MOCK DATA
+// ---------------------------------------------------------------------------
+const SIM_DATA = {
+  step1: {
+    title: "Stage 01: Breaking 422 Schema Drift Trace",
+    tokens: "15,480 tokens (~58 KB JSON Traceback)",
+    code: `HTTP/1.1 422 Unprocessable Entity
+Server: mock_billing_api/2.0.0
+Content-Type: application/json
+Date: Wed, 04 Nov 2026 11:00:00 GMT
+
+{
+  "error": "DEPRECATED_ENDPOINT_ERROR",
+  "message": "POST /v1/orders was permanently retired on 2026-10-31. Use POST /v2/orders with header X-Tenant-ID.",
+  "endpoint": "/v1/orders",
+  "traceback": [
+    "File '/srv/billing/routers/v1_orders.py', line 142, in process_settlement",
+    "  raise SchemaVersionDriftException('Client sent deprecated schema payload')",
+    "File '/srv/billing/middleware/tenant_auth.py', line 88, in verify_tenant",
+    "  missing required header: X-Tenant-ID",
+    "  ... [15,350 tokens of recursive stack frames, environment vars, and request headers] ..."
+  ]
+}`
+  },
+  step2: {
+    title: "Stage 02: Context Surgery (97.7% Pruning)",
+    tokens: "348 tokens (Sanitized Diagnostic Contract)",
+    code: `[CONTEXT SURGEON PRUNING REPORT]
+Status: SUCCESS // 15,480 -> 348 tokens (97.7% prompt token reduction)
+
+{
+  "task_id": "order-settlement-task",
+  "root_cause": "SCHEMA_DRIFT_422",
+  "deprecated_route": "POST /v1/orders",
+  "target_route": "POST /v2/orders",
+  "missing_headers": ["X-Tenant-ID"],
+  "tenant_context": "acme-corp",
+  "diagnostic_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}`
+  },
+  step3: {
+    title: "Stage 03: Synthesized Zero-Retry Vaccine",
+    tokens: "120 tokens (In-Flight Request Rewrite Rule)",
+    code: `--- a/proxy/routes.json
++++ b/proxy/vaccines.json
+@@ -0,0 +1,14 @@
++{
++  "id": "vac-orders-v2-acme",
++  "status": "ENFORCE",
++  "match": {
++    "tool_name": "settle_order",
++    "http_method": "POST",
++    "path_template": "/v1/orders"
++  },
++  "action": {
++    "rewrite_path": "/v2/orders",
++    "inject_headers_from_context": { "X-Tenant-ID": "task.tenant_id" }
++  },
++  "change_hash": "8f4b2a1c"
++}`
+  },
+  step4: {
+    title: "Stage 04: Cryptographic Ledger Anchor",
+    tokens: "64 bytes (SHA-256 Predecessor Chain)",
+    code: `SQLite Ledger Entry #14:
+{
+  "seq_no": 14,
+  "event_type": "VACCINE_ENFORCED",
+  "escrow_id": "vac-orders-v2-acme",
+  "approver_id": "hamza",
+  "prev_hash": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+  "entry_hash": "4bf5c35daced4da0d6636075d179ee3f715705aa5066129ac73c0e3ac0c10222",
+  "timestamp": 1793798578.412
+}
+CHAIN INTEGRITY: VERIFIED [HEAD #14]`
+  }
+};
+
+window.setSimStep = function(stepKey) {
+  AudioFX.click();
+  const d = SIM_DATA[stepKey];
+  if (!d) return;
+  document.querySelectorAll('.sim-step-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.step === stepKey);
+  });
+  const paneTitle = $('#simPaneTitle');
+  const paneTokens = $('#simPaneTokens');
+  const paneCode = $('#simCode');
+  if (paneTitle) paneTitle.innerText = d.title;
+  if (paneTokens) paneTokens.innerText = d.tokens;
+  if (paneCode) paneCode.innerText = d.code;
+};
+
+// ---------------------------------------------------------------------------
+// 00. MASTER LANDING PAGE
 // ---------------------------------------------------------------------------
 function landing(d) {
   const s = d.stats || {};
   return `
     <section class="landing-hero">
-      <div data-effect="particles" class="hero-particles-stage" data-count="55" data-speed="0.4" aria-hidden="true"></div>
-      <div class="hero-content">
-        <div class="hero-eyebrow">
-          <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--acid); box-shadow:0 0 8px var(--acid);"></span>
-          <span data-effect="decrypted-text" data-text="IN-FLIGHT FINOPS // RUNTIME CIRCUIT BREAKER" data-animate-on="view" data-speed="35">IN-FLIGHT FINOPS // RUNTIME CIRCUIT BREAKER</span>
+      <div data-effect="particles" class="hero-particles-stage" data-count="60" data-speed="0.45" aria-hidden="true"></div>
+      <div class="hero-grid">
+        <div class="hero-content">
+          <div class="hero-eyebrow">
+            <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--acid); box-shadow:0 0 10px var(--acid);"></span>
+            <span data-effect="decrypted-text" data-text="IN-FLIGHT FINOPS // RUNTIME CIRCUIT BREAKER" data-animate-on="view" data-speed="35">IN-FLIGHT FINOPS // RUNTIME CIRCUIT BREAKER</span>
+          </div>
+          <h1 class="hero-title">
+            <span data-effect="blur-text" data-text="Autonomous Agents Spend Recklessly. SwitchBlade Stops Them In-Flight." data-delay="35">Autonomous Agents Spend Recklessly. SwitchBlade Stops Them In-Flight.</span>
+          </h1>
+          <p class="hero-subtitle">
+            When enterprise APIs break, autonomous AI workers don’t stop—they hallucinate, spin in infinite retry loops, and burn thousands of enterprise dollars in minutes. 
+            <strong>SwitchBlade halts runaway execution, performs sub-second zero-token context surgery (97.7% prompt token reduction), routes around breaking schema changes with zero-retry vaccines, and anchors all human interventions into a cryptographic SHA-256 ledger.</strong>
+          </p>
+          <div class="hero-ctas">
+            <a href="/overview" class="btn primary" onclick="AudioFX.click()">Launch Control Plane ↗</a>
+            <button class="btn" style="border-color:var(--acid); color:var(--acid);" onclick="triggerDemoLoop()">Simulate Runaway Loop ⚡</button>
+            <a href="#sandbox" class="btn cyan" onclick="AudioFX.click()">Live Surgery Sandbox ↓</a>
+          </div>
         </div>
-        <h1 class="hero-title">
-          <span data-effect="blur-text" data-text="The Circuit Breaker for Autonomous Agents That Refuse to Fail." data-delay="30">The Circuit Breaker for Autonomous Agents That Refuse to Fail.</span>
-        </h1>
-        <p class="hero-subtitle">
-          When autonomous AI agents encounter breaking API drift, they don’t stop—they hallucinate, spin in infinite retry loops, and burn thousands of enterprise dollars in minutes. 
-          <strong>SwitchBlade halts runaway execution, performs sub-second zero-token context surgery, routes around breaking schema changes with zero-retry vaccines, and anchors all human interventions into a cryptographic SHA-256 ledger.</strong>
-        </p>
-        <div class="hero-ctas">
-          <a href="/overview" class="btn primary">Launch Control Plane ↗</a>
-          <a href="/benchmarks" class="btn">View $751k Token Benchmarks</a>
-          <a href="/wispr" class="btn cyan">Wispr Flow Demo ↗</a>
-          <button class="btn" style="border-color:var(--acid); color:var(--acid);" onclick="triggerDemoLoop()">Simulate Runaway Loop ⚡</button>
+
+        <!-- 3D VISUAL EMBLEM -->
+        <div class="hero-visual-card">
+          <div class="hero-visual-art">
+            <img src="/ui/assets/hero_artwork.jpg" alt="SwitchBlade Holographic Blade Prism" onerror="this.src='/ui/assets/switchblade_blade_prism_1793806656878.jpg'">
+          </div>
+          <div class="hero-visual-status">
+            <span style="color:var(--acid);">● GUARDRAIL ARMED</span>
+            <span class="mono" style="color:var(--muted);">PROXY :8002 // ACTIVE</span>
+          </div>
         </div>
       </div>
     </section>
@@ -79,7 +225,7 @@ function landing(d) {
     <section class="metrics-strip">
       <div class="metric-box">
         <span class="small-label">Verified Tokens Saved</span>
-        <strong class="acid"><span data-effect="count-up" data-to="751740" data-duration="2.5">751,740</span></strong>
+        <strong class="acid"><span data-effect="count-up" data-to="751740" data-duration="2.4">751,740</span></strong>
         <small>Control (860k) vs SwitchBlade (108k)</small>
       </div>
       <div class="metric-box">
@@ -90,7 +236,7 @@ function landing(d) {
       <div class="metric-box">
         <span class="small-label">Zero-Retry Pre-Send Latency</span>
         <strong class="good"><span data-effect="count-up" data-to="1.20" data-decimals="2" data-duration="1.8" data-suffix=" µs">1.20 µs</span></strong>
-        <small>10,000 iterations verified microbenchmark</small>
+        <small>10,000 iterations microbenchmark</small>
       </div>
       <div class="metric-box">
         <span class="small-label">Live Gateway Calls</span>
@@ -99,14 +245,120 @@ function landing(d) {
       </div>
     </section>
 
+    <!-- INTERACTIVE TOKEN SURGERY SIMULATOR SANDBOX -->
+    <section id="sandbox" class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-index">01 // LIVE INTERACTIVE SANDBOX</div>
+          <h2>Interactive Context Surgery & Vaccine Simulator</h2>
+        </div>
+        <span class="eyebrow" style="color:var(--acid);">CLICK EACH STEP TO TEST WORKFLOW</span>
+      </div>
+      <div class="simulator-box">
+        <div class="sim-header">
+          <div class="sim-controls">
+            <div class="sim-dot" style="background:#f43f5e;"></div>
+            <div class="sim-dot" style="background:#f59e0b;"></div>
+            <div class="sim-dot" style="background:#10b981;"></div>
+          </div>
+          <span class="mono" style="font-size:11px; color:var(--muted);">SWITCHBLADE FINOPS WORKSPACE ENGINE</span>
+          <span class="chip enforce">DEMO MODE ACTIVE</span>
+        </div>
+        <div class="sim-steps">
+          <button class="sim-step-btn active" data-step="step1" onclick="setSimStep('step1')">01 · 422 Drift Loop</button>
+          <button class="sim-step-btn" data-step="step2" onclick="setSimStep('step2')">02 · Context Surgery (-97.7%)</button>
+          <button class="sim-step-btn" data-step="step3" onclick="setSimStep('step3')">03 · Zero-Retry Vaccine</button>
+          <button class="sim-step-btn" data-step="step4" onclick="setSimStep('step4')">04 · SHA-256 Ledger Anchor</button>
+        </div>
+        <div class="sim-body">
+          <div class="sim-pane">
+            <div class="sim-pane-head">
+              <strong id="simPaneTitle">${SIM_DATA.step1.title}</strong>
+              <span id="simPaneTokens" style="color:var(--rust);">${SIM_DATA.step1.tokens}</span>
+            </div>
+            <pre class="sim-code" id="simCode">${SIM_DATA.step1.code}</pre>
+          </div>
+          <div class="sim-pane" style="justify-content:space-between; background:#070a12;">
+            <div>
+              <div class="sim-pane-head">
+                <span class="eyebrow" style="color:var(--acid);">CIRCUIT BREAKER STATUS</span>
+                <span class="mono">CIRCUIT TRIPPED (COUNT: 3)</span>
+              </div>
+              <p style="font-size:13px; color:var(--muted); line-height:1.5;">
+                When an autonomous agent repeats the same failing tool call 3 times, SwitchBlade suspends the outbound connection via <code>asyncio.Future</code>.
+              </p>
+              <div class="key-value" style="margin-top:14px;">
+                <span>IDEMPOTENCY HASH</span>
+                <span class="mono" style="color:var(--cyan); word-break:break-all;">sha256(settle_order|order_9901|v1)</span>
+              </div>
+              <div class="key-value">
+                <span>ESTIMATED SPEND SAVED</span>
+                <strong style="color:var(--acid);">$11.28 USD (751k tokens)</strong>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+              <button class="btn primary" style="flex:1;" onclick="setSimStep('step2'); AudioFX.success();">Simulate Surgery ✂</button>
+              <button class="btn" style="flex:1;" onclick="setSimStep('step3'); AudioFX.click();">Propose Vaccine 🛡️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FINOPS ROI CALCULATOR -->
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-index">02 // ROI CALCULATOR</div>
+          <h2>Calculate Your Fleet Cost Avoidance</h2>
+        </div>
+      </div>
+      <div class="calculator-box">
+        <div class="calc-inputs">
+          <div class="calc-group">
+            <label>
+              <span>Autonomous Agent Fleet Size</span>
+              <strong id="fleetDisplay" style="color:var(--acid);">50 Agents</strong>
+            </label>
+            <input type="range" min="5" max="500" value="50" step="5" class="calc-slider" id="fleetSlider" oninput="updateROI()">
+          </div>
+          <div class="calc-group">
+            <label>
+              <span>API Drift Regressions Per Month</span>
+              <strong id="incidentsDisplay" style="color:var(--cyan);">3 Incidents</strong>
+            </label>
+            <input type="range" min="1" max="15" value="3" step="1" class="calc-slider" id="incidentsSlider" oninput="updateROI()">
+          </div>
+        </div>
+        <div class="calc-results">
+          <div class="calc-res-item">
+            <span>UNPROTECTED RUNAWAY BURN</span>
+            <strong style="color:var(--rust);"><span id="unprotectedBurn">$23,220</span> / yr</strong>
+          </div>
+          <div class="calc-res-item">
+            <span>SWITCHBLADE GUARDED SPEND</span>
+            <strong style="color:var(--good);"><span id="guardedSpend">$2,916</span> / yr</strong>
+          </div>
+          <div class="calc-res-item" style="border-top:1px solid rgba(215,250,103,0.3); padding-top:14px;">
+            <span>NET ANNUAL FINOPS SAVINGS</span>
+            <strong style="color:var(--acid); font-size:28px;"><span id="netSavings">$20,304</span></strong>
+          </div>
+          <div class="calc-res-item">
+            <span>ANNUAL TOKENS PRESERVED</span>
+            <strong style="color:var(--cyan);"><span id="tokenSavings">112.7M</span> Tokens</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- 4 CORE PILLARS (REACT BITS SPOTLIGHT CARDS) -->
     <section class="section">
       <div class="section-head">
         <div>
-          <div class="section-index">01 // CORE SYSTEM CAPABILITIES</div>
+          <div class="section-index">03 // CORE CAPABILITIES</div>
           <h2>Enterprise Guardrails Built for Scale</h2>
         </div>
-        <a class="text-link" href="/overview">Open Control Plane ↗</a>
+        <a class="text-link" href="/overview" onclick="AudioFX.click()">Open Control Plane ↗</a>
       </div>
       <div class="pillars-grid">
         <div data-effect="spotlight-card" data-spotlight="rgba(215, 250, 103, 0.16)" data-border="rgba(215, 250, 103, 0.45)" class="pillar-card">
@@ -151,39 +403,43 @@ function landing(d) {
       </div>
     </section>
 
-    <!-- INTERACTIVE PIPELINE ARCHITECTURE -->
+    <!-- WISPR FLOW SECTION -->
     <section class="section">
       <div class="section-head">
         <div>
-          <div class="section-index">02 // ARCHITECTURE</div>
-          <h2>End-to-End Interception Lifecycle</h2>
+          <div class="section-index">04 // VOICE ERGONOMICS // $500 TRACK</div>
+          <h2>Wispr Flow Voice-Driven Escrow Approvals</h2>
         </div>
       </div>
-      <div class="architecture-flow">
-        <div class="arch-node">
-          <span class="step">STAGE 01</span>
-          <strong>Worker Agent</strong>
-          <p>Attempts tool call with legacy schema against enterprise billing endpoint.</p>
+      <div class="detail-grid">
+        <div data-effect="spotlight-card" data-spotlight="rgba(6, 182, 212, 0.15)" class="detail-panel">
+          <div class="eyebrow" style="color:var(--cyan);">WISPR FLOW VOICE CONTROL</div>
+          <h2>Hands-Free Incident Response</h2>
+          <p>Typing complex 64-character SHA-256 hashes during production firefights leads to catastrophic errors. Operators use Wispr Flow ultra-low-latency voice dictation to authorize escrows in sub-second time.</p>
+          
+          <div class="wispr-waveform">
+            <div class="wave-bar" style="animation-delay:0.1s;"></div>
+            <div class="wave-bar" style="animation-delay:0.3s;"></div>
+            <div class="wave-bar" style="animation-delay:0.5s;"></div>
+            <div class="wave-bar" style="animation-delay:0.2s;"></div>
+            <div class="wave-bar" style="animation-delay:0.4s;"></div>
+            <div class="wave-bar" style="animation-delay:0.6s;"></div>
+            <div class="wave-bar" style="animation-delay:0.15s;"></div>
+            <div class="wave-bar" style="animation-delay:0.35s;"></div>
+            <div class="wave-bar" style="animation-delay:0.55s;"></div>
+            <div class="wave-bar" style="animation-delay:0.25s;"></div>
+            <div class="wave-bar" style="animation-delay:0.45s;"></div>
+            <div class="wave-bar" style="animation-delay:0.65s;"></div>
+          </div>
+          <span class="mono" style="color:var(--acid);">VOICE RECOGNIZED: "Approve escrow 8f4b2a1c with rewrite to v2 orders"</span>
         </div>
-        <div class="arch-node">
-          <span class="step">STAGE 02</span>
-          <strong>Runtime Proxy (:8002)</strong>
-          <p>Intercepts outbound request. Checks active vaccines or evaluates circuit trip count.</p>
-        </div>
-        <div class="arch-node">
-          <span class="step">STAGE 03</span>
-          <strong>Escrow Suspended</strong>
-          <p>Trips after 3 fails. Worker paused via asyncio.Future. Switch Room card broadcast.</p>
-        </div>
-        <div class="arch-node">
-          <span class="step">STAGE 04</span>
-          <strong>Surgeon & Scout</strong>
-          <p>Context pruned (97.7% reduction), live dry-run executed, vaccine rule proposed.</p>
-        </div>
-        <div class="arch-node">
-          <span class="step">STAGE 05</span>
-          <strong>Human Approval</strong>
-          <p>Hold-to-approve or Wispr voice authorization installs permanent zero-retry vaccine.</p>
+        <div class="detail-panel">
+          <div class="eyebrow">VERIFIED VOICE PROMPTS</div>
+          <h2>Audio Storyboard Triggers</h2>
+          <div class="key-value"><span>"Approve escrow"</span><span>Resolves active escrow with recorded approver ID</span></div>
+          <div class="key-value"><span>"Prune context"</span><span>Invokes Context Surgeon to collapse stack trace</span></div>
+          <div class="key-value"><span>"Run dry test"</span><span>Executes Scout agent zero-mutation simulation</span></div>
+          <div class="key-value"><span>"Rollback vaccine"</span><span>Safely deactivates matching pre-send rewrite</span></div>
         </div>
       </div>
     </section>
@@ -192,7 +448,7 @@ function landing(d) {
     <section class="section">
       <div class="section-head">
         <div>
-          <div class="section-index">03 // LIVE TELEMETRY // REACT BITS</div>
+          <div class="section-index">05 // LIVE TELEMETRY // REACT BITS</div>
           <h2>Real-Time Wave Signal & Matrix</h2>
         </div>
         <span class="eyebrow" style="color:var(--acid);">INTERACTIVE MOUSE CURSOR SURFACE</span>
@@ -216,7 +472,7 @@ function landing(d) {
     <section class="section">
       <div class="section-head">
         <div>
-          <div class="section-index">04 // FLIP THE SWITCH HACKATHON 2026</div>
+          <div class="section-index">06 // FLIP THE SWITCH HACKATHON 2026</div>
           <h2>Engineering Team 1</h2>
         </div>
       </div>
@@ -295,7 +551,7 @@ function overview(d) {
       ${heading('02', 'Escrows Needing Attention', '/escrows', 'Review escrows')}
       ${pending.length ? table(['Escrow ID', 'Task ID', 'Trigger Reason', 'Opened At'], pending.map(e => `
         <tr>
-          <td><a class="text-link" href="/escrows?id=${encodeURIComponent(e.escrow_id)}"><span data-effect="decrypted-text" data-text="${clean(e.escrow_id)}" data-animate-on="hover">${clean(e.escrow_id)}</span> ↗</a></td>
+          <td><a class="text-link" href="/escrows?id=${encodeURIComponent(e.escrow_id)}" onclick="AudioFX.click()"><span data-effect="decrypted-text" data-text="${clean(e.escrow_id)}" data-animate-on="hover">${clean(e.escrow_id)}</span> ↗</a></td>
           <td class="mono">${clean(e.task_id)}</td>
           <td>${clean(e.trip_reason)}</td>
           <td class="mono">${time(e.created_at)}</td>
@@ -348,7 +604,7 @@ function escrows(d) {
   const e = list.find(x => x.escrow_id === id) || list.find(x => x.state === 'PENDING') || list[0];
   const rows = list.map(x => `
     <tr>
-      <td><a class="text-link" href="/escrows?id=${encodeURIComponent(x.escrow_id)}"><span data-effect="decrypted-text" data-text="${clean(x.escrow_id)}">${clean(x.escrow_id)}</span> ↗</a></td>
+      <td><a class="text-link" href="/escrows?id=${encodeURIComponent(x.escrow_id)}" onclick="AudioFX.click()"><span data-effect="decrypted-text" data-text="${clean(x.escrow_id)}">${clean(x.escrow_id)}</span> ↗</a></td>
       <td class="mono">${clean(x.task_id)}</td>
       <td>${chip(x.state)}</td>
       <td>${clean(x.trip_reason || '—')}</td>
@@ -461,7 +717,7 @@ function ledger(d) {
 }
 
 // ---------------------------------------------------------------------------
-// 06. BENCHMARKS VIEW ($751k Tokens Saved, 87.4% Reduction)
+// 06. BENCHMARKS VIEW
 // ---------------------------------------------------------------------------
 function benchmarks(d) {
   return `
@@ -525,7 +781,7 @@ function benchmarks(d) {
 }
 
 // ---------------------------------------------------------------------------
-// 07. WISPR FLOW VIEW (Voice Ergonomics Track)
+// 07. WISPR FLOW VIEW
 // ---------------------------------------------------------------------------
 function wispr(d) {
   return `
@@ -553,9 +809,37 @@ function wispr(d) {
 }
 
 // ---------------------------------------------------------------------------
+// ROI CALCULATOR LOGIC
+// ---------------------------------------------------------------------------
+window.updateROI = function() {
+  const fleet = parseInt($('#fleetSlider')?.value || 50, 10);
+  const incidents = parseInt($('#incidentsSlider')?.value || 3, 10);
+
+  if ($('#fleetDisplay')) $('#fleetDisplay').innerText = `${fleet} Agents`;
+  if ($('#incidentsDisplay')) $('#incidentsDisplay').innerText = `${incidents} Incidents`;
+
+  // Each incident without guardrails: 10 turns x 860k tokens = $12.90 per incident per impacted agent
+  const monthlyIncidents = incidents;
+  const annualIncidents = monthlyIncidents * 12;
+  const impactedAgents = Math.max(1, Math.round(fleet * 0.3));
+
+  const unprotectedAnnualCost = annualIncidents * impactedAgents * 12.90;
+  const guardedAnnualCost = annualIncidents * impactedAgents * 1.62;
+  const netAnnualSavings = unprotectedAnnualCost - guardedAnnualCost;
+  const annualTokensSavedM = (annualIncidents * impactedAgents * 751740) / 1000000;
+
+  if ($('#unprotectedBurn')) $('#unprotectedBurn').innerText = `$${Math.round(unprotectedAnnualCost).toLocaleString()}`;
+  if ($('#guardedSpend')) $('#guardedSpend').innerText = `$${Math.round(guardedAnnualCost).toLocaleString()}`;
+  if ($('#netSavings')) $('#netSavings').innerText = `$${Math.round(netAnnualSavings).toLocaleString()}`;
+  if ($('#tokenSavings')) $('#tokenSavings').innerText = `${annualTokensSavedM.toFixed(1)}M`;
+};
+
+// ---------------------------------------------------------------------------
 // RENDER & TELEMETRY ROUTER
 // ---------------------------------------------------------------------------
 function render() {
+  document.body.classList.toggle('is-landing', route === '/');
+
   const d = state || { stats: {}, escrows: {}, vaccines: [], ledger_head_seq: 0, ledger_head_hash: '—' };
   const key = JSON.stringify([route, d, events, entries]);
   if (key === lastKey || busy) return;
@@ -621,12 +905,15 @@ async function post(path, body) {
 
 async function step(id, action) {
   if (busy) return;
+  AudioFX.click();
   busy = true;
   try {
     const result = await post({ prune: '/surgeon/prune', dryrun: '/scout/dryrun', propose: '/compiler/propose' }[action], { escrow_id: id });
     if (action === 'dryrun' && !result.success) throw new Error(result.message);
+    AudioFX.success();
     notice(action === 'prune' ? 'Context pruned and recorded.' : action === 'dryrun' ? result.message : `Proposal created: ${result.change_hash}`);
   } catch (error) {
+    AudioFX.trip();
     notice(`Workflow failed: ${error.message}`);
   } finally {
     busy = false;
@@ -647,8 +934,10 @@ async function decide(id, approved) {
       change_hash: e.change_hash,
       reason: `${approved ? 'Approved' : 'Rejected'} via SwitchBlade web control plane`
     });
+    if (approved) AudioFX.success(); else AudioFX.trip();
     notice(`Escrow ${result.state.toLowerCase()} and recorded.`);
   } catch (error) {
+    AudioFX.trip();
     notice(`Decision failed: ${error.message}`);
   } finally {
     busy = false;
@@ -657,6 +946,7 @@ async function decide(id, approved) {
 }
 
 window.triggerDemoLoop = async function() {
+  AudioFX.trip();
   notice('Simulating runaway worker tool calls against deprecated /v1/orders…');
   try {
     for (let i = 0; i < 3; i++) {
@@ -671,10 +961,11 @@ window.triggerDemoLoop = async function() {
         })
       });
     }
+    AudioFX.trip();
     notice('⚡ 3 Failed calls detected! Circuit tripped into escrow. Opening /escrows…');
     setTimeout(() => {
       location.href = '/escrows';
-    }, 1500);
+    }, 1200);
   } catch (err) {
     notice('Simulation initiated. Refreshing state…');
   }
@@ -689,6 +980,15 @@ if (menuToggle) {
     menuToggle.setAttribute('aria-expanded', String(open));
   });
 }
+const soundToggle = $('#soundToggle');
+if (soundToggle) {
+  soundToggle.addEventListener('click', () => {
+    AudioFX.muted = !AudioFX.muted;
+    soundToggle.innerText = AudioFX.muted ? '🔇 SFX MUTED' : '🔊 SFX ON';
+    if (!AudioFX.muted) AudioFX.click();
+  });
+}
+
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-step]');
   if (b) step(b.dataset.escrow, b.dataset.step);
