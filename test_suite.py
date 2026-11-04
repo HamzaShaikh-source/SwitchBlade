@@ -6,6 +6,7 @@ Runs automated validation for:
 - Seeded Idempotent Mock Billing API (:8001) [Milestone J1]
 - Context Surgeon atomic pair validity, thinking stripper, and token compaction [Milestone J2]
 - Worker Agent tool execution loop and Anthropic message formatting [Milestone J2]
+- Vaccine Registry 4 security controls, two-stage lifecycle, Scout dry-run, and Compiler Safe PR generator [Milestone J3]
 """
 
 from tests.test_mock_billing_api import (
@@ -32,6 +33,17 @@ from tests.test_context_surgeon import (
     test_validate_message_history_orphaned_tool_result,
     test_context_surgery_atomic_pruning_and_token_reduction,
     test_worker_agent_simulation_and_history_validity,
+)
+
+from tests.test_vaccine_registry import (
+    test_security_control_1_strict_schema_validation,
+    test_security_control_2_header_denylist_forbids_authorization,
+    test_security_control_2_cross_origin_rewrite_rejected,
+    test_security_control_3_dynamic_tenant_binding_fails_closed,
+    test_security_control_4_pre_send_matching_and_ttl_expiry,
+    test_scout_diff_and_dryrun_logic,
+    test_compiler_propose_and_safe_git_branch_generator,
+    tmp_registry,
 )
 
 if __name__ == "__main__":
