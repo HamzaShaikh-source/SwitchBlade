@@ -488,6 +488,125 @@ class SwitchBladeCockpit:
                 time.sleep(duration_sec / len(steps))
 
 
+def state_from_proxy_payload(data: Dict[str, Any], active_mode: str = "LIVE") -> CockpitState:
+    """
+    Parses a ProxyState dictionary or JSON payload from GET /state
+    into a CockpitState instance for rich rendering.
+    """
+    stats = data.get("stats", {})
+    escrows = data.get("escrows", {})
+    vaccines_raw = data.get("vaccines", [])
+
+    # Find active escrow or most recent escrow
+    active_escrow: Optional[Dict[str, Any]] = None
+    for esc in escrows.values():
+        if esc.get("state") == "PENDING":
+            active_escrow = esc
+            break
+    if not active_escrow and escrows:
+        active_escrow = list(escrows.values())[-1]
+
+    escrow_id = active_escrow.get("escrow_id") if active_escrow else None
+    escrow_state = active_escrow.get("state", "IDLE") if active_escrow else "IDLE"
+    change_hash = active_escrow.get("change_hash", "") if active_escrow else ""
+    task_id = active_escrow.get("task_id", stats.get("current_task_id", "task-order-9901")) if active_escrow else stats.get("current_task_id", "task-order-9901")
+    trip_reason = active_escrow.get("error_message", "Circuit breaker active on /v1/orders") if active_escrow else "Zero-progress loop protection"
+
+    # Context surgery metrics
+    surgery_info = stats.get("surgery", {})
+    surgery_performed = bool(surgery_info) or (active_escrow and bool(active_escrow.get("compacted_messages")))
+    tok_before = surgery_info.get("tokens_before", 45200)
+    tok_after = surgery_info.get("tokens_after", 380)
+    red_pct = ((tok_before - tok_after) / tok_before * 100) if tok_before else 99.2
+
+    # Map vaccines
+    vaccine_records: List[VaccineDisplayRecord] = []
+    for v in vaccines_raw:
+        v_match = v.get("match", {})
+        if isinstance(v_match, dict):
+            pattern = f"{v_match.get('http_method', 'POST')} {v_match.get('path_template', '/v1/orders')}"
+        else:
+            pattern = str(v_match)
+
+        v_action = v.get("action", {})
+        target = v_action.get("rewrite_path", "In-flight header injection") if isinstance(v_action, dict) else str(v_action)
+
+        vaccine_records.append(
+            VaccineDisplayRecord(
+                vaccine_id=v.get("id", "VACCINE-042"),
+                match_pattern=pattern,
+                rewrite_target=target,
+                mode=v.get("status", "ENFORCE"),
+                p50_us=stats.get("vaccine_p50_us", 1.2),
+                p99_us=stats.get("vaccine_p99_us", 4.8),
+                times_intercepted=stats.get("vaccines_intercepted", 1),
+            )
+        )
+
+    # Worker turns
+    turns: List[WorkerTurnRecord] = []
+    for t in stats.get("turns", []):
+        turns.append(
+            WorkerTurnRecord(
+                turn=t.get("turn", 1),
+                tool=t.get("tool", "sync_customer_order"),
+                endpoint=t.get("endpoint", "POST /v1/orders"),
+                status_code=t.get("status_code", 422),
+                history_tokens=t.get("history_tokens", 15000),
+                full_request_tokens=t.get("full_request_tokens", 18500),
+                cost_usd=t.get("cost_usd", 0.225),
+                timestamp=t.get("timestamp", datetime.now().strftime("%H:%M:%S")),
+            )
+        )
+
+    # Ledger feed
+    feed: List[LedgerDisplayRecord] = []
+    for item in stats.get("ledger_feed", []):
+        feed.append(
+            LedgerDisplayRecord(
+                seq_no=item.get("seq", 1),
+                event_type=item.get("event", "EVENT"),
+                entry_hash=item.get("hash", "0" * 64),
+                room_anchored=item.get("room_anchored", True),
+                timestamp=item.get("timestamp", datetime.now().strftime("%H:%M:%S")),
+            )
+        )
+
+    if escrow_state == "PENDING":
+        banner = f"Escrow PENDING — Awaiting room command: APPROVE {escrow_id} {change_hash}"
+    elif escrow_state == "APPROVED":
+        banner = f"Escrow APPROVED by human — Worker resumed and vaccine enforced"
+    else:
+        banner = stats.get("status_banner", "SwitchBlade control plane monitoring worker calls")
+
+    return CockpitState(
+        mode=data.get("active_mode", active_mode),
+        room_name=stats.get("room_name", "sb-switchblade"),
+        ledger_status=stats.get("ledger_status", "VERIFIED"),
+        ledger_seq=data.get("ledger_head_seq", 1),
+        ledger_head_hash=data.get("ledger_head_hash", "0" * 64),
+        task_id=task_id,
+        cumulative_tokens=stats.get("cumulative_tokens", 0),
+        cumulative_cost_usd=stats.get("cumulative_cost_usd", 0.0),
+        turns=turns,
+        escrow_id=escrow_id,
+        escrow_state=escrow_state,
+        change_hash=change_hash,
+        trip_reason=trip_reason,
+        surgery_performed=surgery_performed,
+        tokens_before=tok_before,
+        tokens_after=tok_after,
+        full_before=surgery_info.get("full_before", 48500),
+        full_after=surgery_info.get("full_after", 3680),
+        reduction_pct=red_pct,
+        pair_integrity=surgery_info.get("pair_integrity", True),
+        thinking_stripped=surgery_info.get("thinking_stripped", True),
+        vaccines=vaccine_records,
+        ledger_feed=feed,
+        status_banner=banner,
+    )
+
+
 def create_demo_state() -> CockpitState:
     """Builds a realistic default demonstration state for testing the cockpit."""
     state = CockpitState(

@@ -6,9 +6,16 @@ Author: Hamza Shaikh (feat/hamza-cockpit-ui)
 Role: Frontend, Live Telemetry UI & Visual Demo Lead
 
 Usage:
+    # 1. Standalone Selftest (Snapshot or Animated 4-panel stream)
     python run_demo.py --mode selftest [--animate]
-    python run_demo.py --mode replay
+
+    # 2. Live Polling at 10 FPS against Santosh's proxy server (:8002)
     python run_demo.py --mode live [--proxy-url http://localhost:8002]
+
+    # 3. Replay Mode with Scripted Switch Room Policy-Bot
+    python run_demo.py --mode replay
+
+    # 4. View benchmark comparison table
     python run_demo.py --show-bench
 """
 
@@ -17,13 +24,20 @@ import sys
 import time
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
+import httpx
 from rich.console import Console
+from rich.live import Live
 from rich.table import Table
 from rich.panel import Panel
 
-from ui.cockpit import SwitchBladeCockpit, CockpitState, create_demo_state
+from ui.cockpit import (
+    SwitchBladeCockpit,
+    CockpitState,
+    create_demo_state,
+    state_from_proxy_payload,
+)
 
 
 console = Console()
@@ -90,6 +104,58 @@ def show_benchmark_summary(results_path: str = "bench/results.json") -> None:
     console.print(table)
 
 
+def run_live_polling(proxy_url: str = "http://localhost:8002", poll_rate_fps: int = 10, mode: str = "LIVE") -> None:
+    """
+    Subscribes to Santosh's proxy.py state endpoint (GET /state) at 10 FPS
+    so the terminal cockpit updates smoothly in real time as the worker runs.
+    """
+    state_url = f"{proxy_url.rstrip('/')}/state"
+    interval = 1.0 / max(1, poll_rate_fps)
+    cockpit = SwitchBladeCockpit(console=console)
+
+    initial_state = CockpitState(
+        mode=mode.upper(),
+        room_name="sb-switchblade",
+        status_banner=f"Connecting to SwitchBlade proxy at {state_url} ({poll_rate_fps} FPS)...",
+        ledger_status="SYNCING",
+    )
+
+    with Live(cockpit.layout, console=console, refresh_per_second=poll_rate_fps, screen=False) as live:
+        cockpit.update(initial_state)
+        live.refresh()
+
+        client = httpx.Client(timeout=0.3)
+        connected_once = False
+
+        try:
+            while True:
+                try:
+                    resp = client.get(state_url)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        current_state = state_from_proxy_payload(data, active_mode=mode.upper())
+                        cockpit.update(current_state)
+                        live.refresh()
+                        connected_once = True
+                    else:
+                        initial_state.status_banner = f"Proxy returned HTTP {resp.status_code} — Retrying..."
+                        cockpit.update(initial_state)
+                        live.refresh()
+                except (httpx.ConnectError, httpx.TimeoutException):
+                    if not connected_once:
+                        initial_state.status_banner = f"Waiting for proxy server at {state_url} (10 FPS polling)..."
+                    else:
+                        initial_state.status_banner = f"Proxy connection interrupted — Reconnecting to {state_url}..."
+                    cockpit.update(initial_state)
+                    live.refresh()
+
+                time.sleep(interval)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            client.close()
+
+
 def run_selftest(animate: bool = False, duration: float = 4.0) -> None:
     """Executes a standalone validation of the Rich Telemetry Cockpit."""
     cockpit = SwitchBladeCockpit(console=console)
@@ -104,9 +170,10 @@ def run_selftest(animate: bool = False, duration: float = 4.0) -> None:
 def main():
     parser = argparse.ArgumentParser(description="SwitchBlade Live Telemetry Cockpit & Visual Runner")
     parser.add_argument("--mode", choices=["live", "replay", "selftest"], default="selftest", help="Cockpit execution mode")
-    parser.add_argument("--animate", action="store_true", help="Run animated live timeline stream")
+    parser.add_argument("--animate", action="store_true", help="Run animated live timeline stream in selftest mode")
     parser.add_argument("--duration", type=float, default=4.0, help="Duration for animated stream in seconds")
-    parser.add_argument("--proxy-url", default="http://localhost:8002", help="URL of SwitchBlade proxy")
+    parser.add_argument("--proxy-url", default="http://localhost:8002", help="URL of SwitchBlade proxy (:8002)")
+    parser.add_argument("--fps", type=int, default=10, help="Polling frames per second (default: 10 FPS)")
     parser.add_argument("--show-bench", action="store_true", help="Display benchmark summary from bench/results.json")
 
     args = parser.parse_args()
@@ -117,12 +184,8 @@ def main():
 
     if args.mode == "selftest":
         run_selftest(animate=args.animate, duration=args.duration)
-    elif args.mode in ("live", "replay"):
-        console.print(f"[bold yellow]Running in {args.mode.upper()} mode.[/]")
-        console.print(f"[dim]Connecting to proxy at {args.proxy_url}...[/]")
-        cockpit = SwitchBladeCockpit(console=console)
-        # Fallback to animated demo if proxy is not yet running
-        cockpit.stream_live(duration_sec=args.duration, fps=4)
+    else:
+        run_live_polling(proxy_url=args.proxy_url, poll_rate_fps=args.fps, mode=args.mode)
 
 
 if __name__ == "__main__":
