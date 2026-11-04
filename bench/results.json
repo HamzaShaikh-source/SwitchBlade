@@ -1,0 +1,149 @@
+{
+  "run_id": "c9738634",
+  "timestamp": "2026-11-04T04:42:58Z",
+  "machine": "Windows AMD64 (Intel64 Family 6 Model 142 Stepping 10, GenuineIntel)",
+  "python_version": "3.12.10",
+  "git_sha": "888f48a99789c03cf0c80f347659805c125fcc8a",
+  "control_run": {
+    "turns": 10,
+    "final_status": "HALTED_BY_MAX_ITERATIONS",
+    "order_settled": false,
+    "total_tokens": 860000,
+    "total_cost_usd": 12.9,
+    "turns_log": [
+      {
+        "turn": 1,
+        "status": 422,
+        "history_tokens": 15000,
+        "full_request_tokens": 18500,
+        "turn_cost_usd": 0.2775
+      },
+      {
+        "turn": 2,
+        "status": 422,
+        "history_tokens": 30000,
+        "full_request_tokens": 33500,
+        "turn_cost_usd": 0.5025
+      },
+      {
+        "turn": 3,
+        "status": 422,
+        "history_tokens": 45000,
+        "full_request_tokens": 48500,
+        "turn_cost_usd": 0.7275
+      },
+      {
+        "turn": 4,
+        "status": 422,
+        "history_tokens": 60000,
+        "full_request_tokens": 63500,
+        "turn_cost_usd": 0.9525
+      },
+      {
+        "turn": 5,
+        "status": 422,
+        "history_tokens": 75000,
+        "full_request_tokens": 78500,
+        "turn_cost_usd": 1.1775
+      },
+      {
+        "turn": 6,
+        "status": 422,
+        "history_tokens": 90000,
+        "full_request_tokens": 93500,
+        "turn_cost_usd": 1.4025
+      },
+      {
+        "turn": 7,
+        "status": 422,
+        "history_tokens": 105000,
+        "full_request_tokens": 108500,
+        "turn_cost_usd": 1.6275
+      },
+      {
+        "turn": 8,
+        "status": 422,
+        "history_tokens": 120000,
+        "full_request_tokens": 123500,
+        "turn_cost_usd": 1.8525
+      },
+      {
+        "turn": 9,
+        "status": 422,
+        "history_tokens": 135000,
+        "full_request_tokens": 138500,
+        "turn_cost_usd": 2.0775
+      },
+      {
+        "turn": 10,
+        "status": 422,
+        "history_tokens": 150000,
+        "full_request_tokens": 153500,
+        "turn_cost_usd": 2.3025
+      }
+    ]
+  },
+  "guarded_run": {
+    "turns": 4,
+    "orders_settled": [
+      9901,
+      9902
+    ],
+    "total_tokens": 108260,
+    "total_cost_usd": 1.6239,
+    "history_reduction_pct": 99.2,
+    "turns_log": [
+      {
+        "turn": 1,
+        "order_id": 9901,
+        "status": 422,
+        "history_tokens": 15000,
+        "full_request_tokens": 18500,
+        "turn_cost_usd": 0.2775
+      },
+      {
+        "turn": 2,
+        "order_id": 9901,
+        "status": 422,
+        "history_tokens": 30000,
+        "full_request_tokens": 33500,
+        "turn_cost_usd": 0.5025
+      },
+      {
+        "turn": 3,
+        "order_id": 9901,
+        "status": 422,
+        "history_tokens": 45000,
+        "full_request_tokens": 48500,
+        "turn_cost_usd": 0.7275
+      },
+      {
+        "turn": 4,
+        "order_id": 9901,
+        "status": 200,
+        "history_tokens": 380,
+        "full_request_tokens": 3880,
+        "turn_cost_usd": 0.0582,
+        "event": "ORDER_9901_SETTLED_POST_SURGERY"
+      },
+      {
+        "turn": 5,
+        "order_id": 9902,
+        "status": 200,
+        "history_tokens": 380,
+        "full_request_tokens": 3880,
+        "turn_cost_usd": 0.0582,
+        "event": "ORDER_9902_PRE_SEND_VACCINE_TURN_1"
+      }
+    ]
+  },
+  "rewrite_latency": {
+    "iterations": 10000,
+    "p50_us": 1.2,
+    "p90_us": 1.3,
+    "p99_us": 2.6
+  },
+  "tokens_saved": 751740,
+  "cost_saved_usd": 11.2761,
+  "cost_reduction_pct": 87.41
+}
