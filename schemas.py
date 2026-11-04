@@ -178,6 +178,10 @@ class EscrowRecord(BaseModel):
     task_context: Optional[TaskContext] = Field(default=None, description="Task context snapshot")
     tool_name: Optional[str] = Field(default=None, description="Tool that triggered the escrow trip")
     error_message: Optional[str] = Field(default=None, description="Last error message or status")
+    trip_reason: Optional[str] = Field(
+        default=None, description="Circuit breaker trip reason: PERMANENT_ERROR_LOOP or ZERO_PROGRESS_SPIN_CYCLE"
+    )
+    retry_after: Optional[float] = Field(default=None, description="Retry-after seconds if transient")
     proposed_diff: Optional[str] = Field(default=None, description="Candidate code diff or patch")
     proposed_vaccine: Optional[Dict[str, Any]] = Field(
         default=None, description="Candidate vaccine rule dict"
@@ -342,11 +346,17 @@ class ExecuteToolRequest(BaseModel):
 
 class ExecuteToolResponse(BaseModel):
     """Response returned to worker agent from proxy tool execution."""
-    status: str = Field(..., description="'success', 'error', or 'tripped'")
+    status: str = Field(..., description="'success', 'error', 'tripped', 'rejected', or 'expired'")
     result: Optional[Any] = Field(default=None, description="Tool execution result")
     error: Optional[str] = Field(default=None, description="Error message if failed")
     escrow_id: Optional[str] = Field(default=None, description="Escrow ID if circuit breaker tripped")
     vaccine_applied: Optional[str] = Field(default=None, description="ID of vaccine rule applied, if any")
+    retry_after: Optional[float] = Field(
+        default=None, description="Seconds to wait before retrying on transient error (honoring Retry-After)"
+    )
+    trip_reason: Optional[str] = Field(
+        default=None, description="Circuit breaker trip reason: PERMANENT_ERROR_LOOP or ZERO_PROGRESS_SPIN_CYCLE"
+    )
 
     model_config = ConfigDict(extra="allow")
 
