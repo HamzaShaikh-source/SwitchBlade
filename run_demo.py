@@ -26,6 +26,18 @@ import json
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+# Ensure UTF-8 output across all platforms
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 import httpx
 from rich.console import Console
 from rich.live import Live
@@ -67,8 +79,9 @@ def show_benchmark_summary(results_path: str = "bench/results.json") -> None:
     table.add_column("SwitchBlade Guarded Run", style="bold green", justify="right")
     table.add_column("Delta / FinOps Savings", style="bold yellow", justify="right")
 
-    control = data.get("control_run", {})
-    guarded = data.get("guarded_run", {})
+    control = data.get("control_run") or {}
+    guarded = data.get("guarded_run") or {}
+    latency = data.get("rewrite_latency") or {}
 
     table.add_row(
         "Total Turns to Settle Order",
@@ -91,7 +104,7 @@ def show_benchmark_summary(results_path: str = "bench/results.json") -> None:
     table.add_row(
         "Vaccine Rewrite Latency (p50 / p99)",
         "N/A",
-        f"{data.get('rewrite_latency', {}).get('p50_us', 0.0):.2f}μs / {data.get('rewrite_latency', {}).get('p99_us', 0.0):.2f}μs",
+        f"{latency.get('p50_us', 0.0):.2f}μs / {latency.get('p99_us', 0.0):.2f}μs",
         "[dim]Over 10,000 iterations[/]",
     )
     table.add_row(
@@ -132,20 +145,34 @@ def run_live_polling(proxy_url: str = "http://localhost:8002", poll_rate_fps: in
                 try:
                     resp = client.get(state_url)
                     if resp.status_code == 200:
-                        data = resp.json()
-                        current_state = state_from_proxy_payload(data, active_mode=mode.upper())
-                        cockpit.update(current_state)
-                        live.refresh()
-                        connected_once = True
+                        try:
+                            data = resp.json()
+                            if isinstance(data, dict):
+                                current_state = state_from_proxy_payload(data, active_mode=mode.upper())
+                                cockpit.update(current_state)
+                                live.refresh()
+                                connected_once = True
+                            else:
+                                initial_state.status_banner = "Proxy returned non-dict payload — Retrying..."
+                                cockpit.update(initial_state)
+                                live.refresh()
+                        except (json.JSONDecodeError, ValueError) as json_err:
+                            initial_state.status_banner = f"Proxy returned invalid JSON ({json_err}) — Retrying..."
+                            cockpit.update(initial_state)
+                            live.refresh()
                     else:
                         initial_state.status_banner = f"Proxy returned HTTP {resp.status_code} — Retrying..."
                         cockpit.update(initial_state)
                         live.refresh()
-                except (httpx.ConnectError, httpx.TimeoutException):
+                except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPError) as net_err:
                     if not connected_once:
                         initial_state.status_banner = f"Waiting for proxy server at {state_url} (10 FPS polling)..."
                     else:
-                        initial_state.status_banner = f"Proxy connection interrupted — Reconnecting to {state_url}..."
+                        initial_state.status_banner = f"Proxy connection interrupted ({type(net_err).__name__}) — Reconnecting..."
+                    cockpit.update(initial_state)
+                    live.refresh()
+                except Exception as loop_err:
+                    initial_state.status_banner = f"Telemetry monitor notice: {loop_err}"
                     cockpit.update(initial_state)
                     live.refresh()
 

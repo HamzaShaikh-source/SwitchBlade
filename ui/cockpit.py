@@ -14,8 +14,21 @@ Displays a real-time, 4-panel split terminal UI powered by Rich:
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import time
+import sys
+
+# Ensure UTF-8 output across all platforms without crashing on standard Windows consoles
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 from rich.console import Console, RenderResult
 from rich.layout import Layout
@@ -200,10 +213,11 @@ class SwitchBladeCockpit:
 
         # Build Visual Burn Bar
         cap = 100000
-        pct = min(100.0, (state.cumulative_tokens / cap) * 100)
+        cum_tok = max(0, state.cumulative_tokens)
+        pct = min(100.0, (cum_tok / cap) * 100) if cap > 0 else 0.0
         bar_width = 24
-        filled = int((pct / 100.0) * bar_width)
-        empty = bar_width - filled
+        filled = min(bar_width, max(0, int((pct / 100.0) * bar_width)))
+        empty = max(0, bar_width - filled)
 
         if pct < 30:
             bar_color = "green"
@@ -259,14 +273,18 @@ class SwitchBladeCockpit:
 
         # Context Surgery Gauge
         if state.surgery_performed:
-            reduction = state.reduction_pct
-            saved_tokens = state.tokens_before - state.tokens_after
+            reduction = max(0.0, state.reduction_pct)
+            saved_tokens = max(0, state.tokens_before - state.tokens_after)
 
             # Visual compression bars
             b_width = 22
             before_bar = "[red]" + "█" * b_width + "[/]"
-            after_ratio = max(1, int((state.tokens_after / state.tokens_before) * b_width))
-            after_bar = "[green]" + "█" * after_ratio + "[/][dim]" + "░" * (b_width - after_ratio) + "[/]"
+            if state.tokens_before > 0:
+                after_ratio = min(b_width, max(0, int((state.tokens_after / state.tokens_before) * b_width)))
+            else:
+                after_ratio = 0
+            empty_ratio = max(0, b_width - after_ratio)
+            after_bar = "[green]" + "█" * after_ratio + "[/][dim]" + "░" * empty_ratio + "[/]"
 
             pair_badge = "[bold green]✔ ATOMIC (tool_use, tool_result)[/]" if state.pair_integrity else "[bold red]FAIL[/]"
             thinking_badge = "[bold green]✔ STRIPPED[/]" if state.thinking_stripped else "[yellow]KEPT[/]"
@@ -488,23 +506,50 @@ class SwitchBladeCockpit:
                 time.sleep(duration_sec / len(steps))
 
 
-def state_from_proxy_payload(data: Dict[str, Any], active_mode: str = "LIVE") -> CockpitState:
+def _safe_int(val: Any, default: int = 0) -> int:
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return default
+
+
+def state_from_proxy_payload(data: Any, active_mode: str = "LIVE") -> CockpitState:
     """
     Parses a ProxyState dictionary or JSON payload from GET /state
     into a CockpitState instance for rich rendering.
+    Safely handles empty, malformed, or partial data without throwing exceptions.
     """
-    stats = data.get("stats", {})
-    escrows = data.get("escrows", {})
-    vaccines_raw = data.get("vaccines", [])
+    if not isinstance(data, dict):
+        data = {}
+
+    stats = data.get("stats") if isinstance(data.get("stats"), dict) else {}
+    escrows_val = data.get("escrows")
+    if isinstance(escrows_val, dict):
+        escrow_list = list(escrows_val.values())
+    elif isinstance(escrows_val, list):
+        escrow_list = escrows_val
+    else:
+        escrow_list = []
+
+    vaccines_raw = data.get("vaccines") if isinstance(data.get("vaccines"), list) else []
 
     # Find active escrow or most recent escrow
     active_escrow: Optional[Dict[str, Any]] = None
-    for esc in escrows.values():
-        if esc.get("state") == "PENDING":
+    for esc in escrow_list:
+        if isinstance(esc, dict) and esc.get("state") == "PENDING":
             active_escrow = esc
             break
-    if not active_escrow and escrows:
-        active_escrow = list(escrows.values())[-1]
+    if not active_escrow and escrow_list:
+        candidate = escrow_list[-1]
+        if isinstance(candidate, dict):
+            active_escrow = candidate
 
     escrow_id = active_escrow.get("escrow_id") if active_escrow else None
     escrow_state = active_escrow.get("state", "IDLE") if active_escrow else "IDLE"
@@ -513,15 +558,17 @@ def state_from_proxy_payload(data: Dict[str, Any], active_mode: str = "LIVE") ->
     trip_reason = active_escrow.get("error_message", "Circuit breaker active on /v1/orders") if active_escrow else "Zero-progress loop protection"
 
     # Context surgery metrics
-    surgery_info = stats.get("surgery", {})
-    surgery_performed = bool(surgery_info) or (active_escrow and bool(active_escrow.get("compacted_messages")))
-    tok_before = surgery_info.get("tokens_before", 45200)
-    tok_after = surgery_info.get("tokens_after", 380)
-    red_pct = ((tok_before - tok_after) / tok_before * 100) if tok_before else 99.2
+    surgery_info = stats.get("surgery") if isinstance(stats.get("surgery"), dict) else {}
+    surgery_performed = bool(surgery_info) or (active_escrow is not None and bool(active_escrow.get("compacted_messages")))
+    tok_before = max(0, _safe_int(surgery_info.get("tokens_before", 45200), default=45200))
+    tok_after = max(0, _safe_int(surgery_info.get("tokens_after", 380), default=380))
+    red_pct = max(0.0, ((tok_before - tok_after) / tok_before * 100)) if tok_before > 0 else 0.0
 
     # Map vaccines
     vaccine_records: List[VaccineDisplayRecord] = []
     for v in vaccines_raw:
+        if not isinstance(v, dict):
+            continue
         v_match = v.get("match", {})
         if isinstance(v_match, dict):
             pattern = f"{v_match.get('http_method', 'POST')} {v_match.get('path_template', '/v1/orders')}"
@@ -533,61 +580,69 @@ def state_from_proxy_payload(data: Dict[str, Any], active_mode: str = "LIVE") ->
 
         vaccine_records.append(
             VaccineDisplayRecord(
-                vaccine_id=v.get("id", "VACCINE-042"),
+                vaccine_id=str(v.get("id", "VACCINE-042")),
                 match_pattern=pattern,
                 rewrite_target=target,
-                mode=v.get("status", "ENFORCE"),
-                p50_us=stats.get("vaccine_p50_us", 1.2),
-                p99_us=stats.get("vaccine_p99_us", 4.8),
-                times_intercepted=stats.get("vaccines_intercepted", 1),
+                mode=str(v.get("status", "ENFORCE")),
+                p50_us=_safe_float(stats.get("vaccine_p50_us", 1.2), default=1.2),
+                p99_us=_safe_float(stats.get("vaccine_p99_us", 4.8), default=4.8),
+                times_intercepted=_safe_int(stats.get("vaccines_intercepted", 1), default=1),
             )
         )
 
     # Worker turns
     turns: List[WorkerTurnRecord] = []
-    for t in stats.get("turns", []):
-        turns.append(
-            WorkerTurnRecord(
-                turn=t.get("turn", 1),
-                tool=t.get("tool", "sync_customer_order"),
-                endpoint=t.get("endpoint", "POST /v1/orders"),
-                status_code=t.get("status_code", 422),
-                history_tokens=t.get("history_tokens", 15000),
-                full_request_tokens=t.get("full_request_tokens", 18500),
-                cost_usd=t.get("cost_usd", 0.225),
-                timestamp=t.get("timestamp", datetime.now().strftime("%H:%M:%S")),
+    turns_raw = stats.get("turns", [])
+    if isinstance(turns_raw, list):
+        for t in turns_raw:
+            if not isinstance(t, dict):
+                continue
+            turns.append(
+                WorkerTurnRecord(
+                    turn=_safe_int(t.get("turn", 1), default=1),
+                    tool=str(t.get("tool", "sync_customer_order")),
+                    endpoint=str(t.get("endpoint", "POST /v1/orders")),
+                    status_code=_safe_int(t.get("status_code", 422), default=422),
+                    history_tokens=_safe_int(t.get("history_tokens", 15000), default=15000),
+                    full_request_tokens=_safe_int(t.get("full_request_tokens", 18500), default=18500),
+                    cost_usd=_safe_float(t.get("cost_usd", 0.225), default=0.225),
+                    timestamp=str(t.get("timestamp", datetime.now().strftime("%H:%M:%S"))),
+                )
             )
-        )
 
     # Ledger feed
     feed: List[LedgerDisplayRecord] = []
-    for item in stats.get("ledger_feed", []):
-        feed.append(
-            LedgerDisplayRecord(
-                seq_no=item.get("seq", 1),
-                event_type=item.get("event", "EVENT"),
-                entry_hash=item.get("hash", "0" * 64),
-                room_anchored=item.get("room_anchored", True),
-                timestamp=item.get("timestamp", datetime.now().strftime("%H:%M:%S")),
+    feed_raw = stats.get("ledger_feed", [])
+    if isinstance(feed_raw, list):
+        for item in feed_raw:
+            if not isinstance(item, dict):
+                continue
+            feed.append(
+                LedgerDisplayRecord(
+                    seq_no=_safe_int(item.get("seq", 1), default=1),
+                    event_type=str(item.get("event", "EVENT")),
+                    entry_hash=str(item.get("hash", "0" * 64)),
+                    room_anchored=bool(item.get("room_anchored", True)),
+                    timestamp=str(item.get("timestamp", datetime.now().strftime("%H:%M:%S"))),
+                )
             )
-        )
 
     if escrow_state == "PENDING":
         banner = f"Escrow PENDING — Awaiting room command: APPROVE {escrow_id} {change_hash}"
     elif escrow_state == "APPROVED":
-        banner = f"Escrow APPROVED by human — Worker resumed and vaccine enforced"
+        banner = "Escrow APPROVED by human — Worker resumed and vaccine enforced"
     else:
-        banner = stats.get("status_banner", "SwitchBlade control plane monitoring worker calls")
+        banner = str(stats.get("status_banner", "SwitchBlade control plane monitoring worker calls"))
 
     return CockpitState(
-        mode=data.get("active_mode", active_mode),
-        room_name=stats.get("room_name", "sb-switchblade"),
-        ledger_status=stats.get("ledger_status", "VERIFIED"),
-        ledger_seq=data.get("ledger_head_seq", 1),
-        ledger_head_hash=data.get("ledger_head_hash", "0" * 64),
-        task_id=task_id,
-        cumulative_tokens=stats.get("cumulative_tokens", 0),
-        cumulative_cost_usd=stats.get("cumulative_cost_usd", 0.0),
+        mode=str(data.get("active_mode", active_mode)),
+        room_name=str(stats.get("room_name", "sb-switchblade")),
+        ledger_status=str(stats.get("ledger_status", "VERIFIED")),
+        ledger_seq=_safe_int(data.get("ledger_head_seq", 1), default=1),
+        ledger_head_hash=str(data.get("ledger_head_hash", "0" * 64)),
+        task_id=str(task_id),
+        cumulative_tokens=_safe_int(stats.get("cumulative_tokens", 0), default=0),
+        cumulative_cost_usd=_safe_float(stats.get("cumulative_cost_usd", 0.0), default=0.0),
         turns=turns,
         escrow_id=escrow_id,
         escrow_state=escrow_state,
@@ -596,11 +651,11 @@ def state_from_proxy_payload(data: Dict[str, Any], active_mode: str = "LIVE") ->
         surgery_performed=surgery_performed,
         tokens_before=tok_before,
         tokens_after=tok_after,
-        full_before=surgery_info.get("full_before", 48500),
-        full_after=surgery_info.get("full_after", 3680),
+        full_before=_safe_int(surgery_info.get("full_before", 48500), default=48500),
+        full_after=_safe_int(surgery_info.get("full_after", 3680), default=3680),
         reduction_pct=red_pct,
-        pair_integrity=surgery_info.get("pair_integrity", True),
-        thinking_stripped=surgery_info.get("thinking_stripped", True),
+        pair_integrity=bool(surgery_info.get("pair_integrity", True)),
+        thinking_stripped=bool(surgery_info.get("thinking_stripped", True)),
         vaccines=vaccine_records,
         ledger_feed=feed,
         status_banner=banner,
