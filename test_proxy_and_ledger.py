@@ -396,3 +396,72 @@ def test_strict_authorization_allowlist(test_client):
     )
     assert resp_human.status_code == 200
     assert resp_human.json()["state"] == "APPROVED"
+
+
+def test_milestone_s4_ledger_checkpoint_emission(test_client):
+    """Milestone S4: Verify LEDGER_CHECKPOINT event emission every 5 events."""
+    task_id = "task-checkpoint-test"
+    tool_req = {
+        "task_id": task_id,
+        "tool_name": "sync_customer_order",
+        "arguments": {"order_id": 9901},
+        "context": {
+            "task_id": task_id,
+            "order_id": 9901,
+            "tenant_id": "acme-corp",
+            "amount": 4500.0,
+            "customer": "Acme-India",
+        },
+    }
+
+    # Generate 5 events through the proxy
+    # 3 errors -> trip (event 1: ESCROW_TRIPPED)
+    for _ in range(3):
+        res = test_client.post("/proxy/execute_tool", json=tool_req)
+    escrow_id = res.json()["escrow_id"]
+
+    # Surgery prune (event 2: CONTEXT_SURGERY_COMPLETED)
+    test_client.post("/surgeon/prune", json={"escrow_id": escrow_id})
+
+    # Scout dryrun (event 3: DRY_RUN_EXECUTED)
+    test_client.post("/scout/dryrun", json={"escrow_id": escrow_id})
+
+    # Compiler propose (event 4: VACCINE_PROPOSED)
+    comp_res = test_client.post("/compiler/propose", json={"escrow_id": escrow_id})
+    change_hash = comp_res.json()["change_hash"]
+
+    # Decision approve (event 5: DECISION_APPROVED -> hits seq 5!)
+    test_client.post(
+        "/escrow/decision",
+        json={
+            "escrow_id": escrow_id,
+            "approved": True,
+            "approver_id": "santosh-lead",
+            "change_hash": change_hash,
+            "reason": "Verified fix",
+        },
+    )
+
+    # Check that LEDGER_CHECKPOINT was emitted into event queue
+    events = test_client.get("/events").json()
+    checkpoint_events = [e for e in events if e.get("event_type") == "LEDGER_CHECKPOINT"]
+    assert len(checkpoint_events) >= 1
+    cp = checkpoint_events[0]["data"]
+    assert cp["seq"] == 5
+    assert len(cp["head_hash"]) == 64
+    assert cp["checkpoint_line"].startswith("LEDGER_CHECKPOINT seq=5 head_hash=")
+
+
+def test_verify_ledger_cli_tamper_demo():
+    """Milestone S4: Verify that verify_ledger.py --tamper-demo exits 1 with TAMPER DETECTED."""
+    import subprocess
+    import sys
+
+    res = subprocess.run(
+        [sys.executable, "verify_ledger.py", "--tamper-demo"],
+        capture_output=True,
+        text=True,
+    )
+    # Spec requirement: proves verify_ledger.py exits 1 with TAMPER DETECTED AT SEQ <id>
+    assert res.returncode == 1
+    assert "TAMPER DETECTED AT SEQ" in res.stdout

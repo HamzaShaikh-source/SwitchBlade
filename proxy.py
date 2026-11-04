@@ -193,6 +193,35 @@ class EscrowManager:
         if len(self.event_queue) > 200:
             self.event_queue.pop(0)
 
+    def record_ledger_event(
+        self,
+        escrow_id: str,
+        event_type: Union[str, LedgerEventType],
+        payload: Dict[str, Any],
+    ):
+        """
+        Appends an entry to the SQLite ledger and automatically broadcasts
+        LEDGER_CHECKPOINT events every 5 events (seq_no % 5 == 0) for Switch room anchoring.
+        """
+        entry, checkpoint = self.ledger.append_entry(
+            escrow_id=escrow_id,
+            event_type=event_type,
+            payload=payload,
+        )
+        if checkpoint:
+            checkpoint_line = f"LEDGER_CHECKPOINT seq={checkpoint.seq} head_hash={checkpoint.head_hash}"
+            logger.info(f"[LEDGER ANCHOR] {checkpoint_line}")
+            self.emit_event(
+                "LEDGER_CHECKPOINT",
+                {
+                    "seq": checkpoint.seq,
+                    "head_hash": checkpoint.head_hash,
+                    "timestamp": checkpoint.timestamp,
+                    "checkpoint_line": checkpoint_line,
+                },
+            )
+        return entry
+
     def register_escrow(
         self,
         task_id: str,
@@ -238,7 +267,7 @@ class EscrowManager:
             self.stats["spin_cycle_trips"] += 1
 
         # Record to immutable ledger
-        self.ledger.append_entry(
+        self.record_ledger_event(
             escrow_id=escrow_id,
             event_type=LedgerEventType.ESCROW_TRIPPED,
             payload={
@@ -322,7 +351,7 @@ class EscrowManager:
             self.stats["total_approved"] += 1
 
             # Ledger record
-            self.ledger.append_entry(
+            self.record_ledger_event(
                 escrow_id=escrow_id,
                 event_type=LedgerEventType.DECISION_APPROVED,
                 payload={
@@ -341,7 +370,7 @@ class EscrowManager:
                 self.save_vaccines_to_disk()
                 self.stats["total_vaccines_enforced"] += 1
 
-                self.ledger.append_entry(
+                self.record_ledger_event(
                     escrow_id=escrow_id,
                     event_type=LedgerEventType.VACCINE_PROMOTED,
                     payload={"vaccine_id": rule.id, "change_hash": rule.change_hash},
@@ -365,7 +394,7 @@ class EscrowManager:
             record.decision = decision
             self.stats["total_rejected"] += 1
 
-            self.ledger.append_entry(
+            self.record_ledger_event(
                 escrow_id=escrow_id,
                 event_type=LedgerEventType.DECISION_REJECTED,
                 payload={
@@ -680,7 +709,7 @@ async def execute_tool(
                 )
         except asyncio.TimeoutError:
             escrow.state = EscrowState.EXPIRED
-            escrow_mgr.ledger.append_entry(
+            escrow_mgr.record_ledger_event(
                 escrow_id=escrow.escrow_id,
                 event_type="ESCROW_EXPIRED",
                 payload={"ttl_seconds": DEFAULT_ESCROW_TTL},
@@ -748,7 +777,7 @@ async def surgeon_prune(req: SurgeryPruneRequest):
     escrow.failed_attempts = failed_summary
 
     # Update ledger
-    ledger_mgr.append_entry(
+    escrow_mgr.record_ledger_event(
         escrow_id=req.escrow_id,
         event_type=LedgerEventType.CONTEXT_SURGERY_COMPLETED,
         payload={
@@ -829,7 +858,7 @@ async def scout_dryrun(req: DryRunRequest):
         # Mock API not up in unit test mode; return verified contract result
         pass
 
-    ledger_mgr.append_entry(
+    escrow_mgr.record_ledger_event(
         escrow_id=req.escrow_id,
         event_type=LedgerEventType.DRY_RUN_EXECUTED,
         payload={"route": proposed_route, "success": success, "dry_run_result": dry_run_result},
@@ -917,7 +946,7 @@ async def compiler_propose(req: CompilerProposeRequest):
     escrow.proposed_diff = patch_diff
 
     # Ledger entry
-    ledger_mgr.append_entry(
+    escrow_mgr.record_ledger_event(
         escrow_id=req.escrow_id,
         event_type=LedgerEventType.VACCINE_PROPOSED,
         payload={"vaccine_id": vaccine_id, "change_hash": change_hash, "linked_pr": linked_pr},
@@ -976,7 +1005,7 @@ async def promote_vaccine(
 
     rule.status = VaccineStatus.ENFORCE
     escrow_mgr.save_vaccines_to_disk()
-    ledger_mgr.append_entry(
+    escrow_mgr.record_ledger_event(
         escrow_id=vaccine_id,
         event_type=LedgerEventType.VACCINE_PROMOTED,
         payload={"vaccine_id": vaccine_id, "approver_id": approver_id},
@@ -998,7 +1027,7 @@ async def rollback_vaccine(
     rule = escrow_mgr.vaccines[vaccine_id]
     rule.status = VaccineStatus.ROLLED_BACK
     escrow_mgr.save_vaccines_to_disk()
-    ledger_mgr.append_entry(
+    escrow_mgr.record_ledger_event(
         escrow_id=vaccine_id,
         event_type=LedgerEventType.VACCINE_ROLLED_BACK,
         payload={"vaccine_id": vaccine_id, "approver_id": approver_id},
