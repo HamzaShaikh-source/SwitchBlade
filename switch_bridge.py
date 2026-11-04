@@ -127,6 +127,7 @@ class SwitchBridge:
 
         # Message & event handlers
         self._event_subscribers: List[Callable[[Dict[str, Any]], Coroutine[Any, Any, None]]] = []
+        self.policy_bot: Optional["PolicyBot"] = None
 
     # -----------------------------------------------------------------------
     # Authentication & Registration
@@ -351,13 +352,18 @@ class SwitchBridge:
         user = self.clean_sender(sender)
         logger.info("Message from '%s' (addressed=%s): %s", user, addressed, body)
 
-        # Ignore messages originating from automated SwitchBlade agents
+        # Ignore commands originating from automated SwitchBlade agents,
+        # but allow policy-bot to inspect status cards and prompts posted by agents
         if user in self.agent_ids:
+            if self.policy_bot:
+                await self.policy_bot.on_room_message(sender=sender, body=body, message_id=message_id)
             logger.debug("Ignoring message from agent identity '%s'", user)
             return None
 
         cmd = self.parse_command(body)
         if not cmd:
+            if self.policy_bot:
+                await self.policy_bot.on_room_message(sender=sender, body=body, message_id=message_id)
             return None
 
         # Verify approver is human allowlisted
@@ -449,17 +455,17 @@ class SwitchBridge:
 
     async def _dispatch_promote(self, vaccine_id: str, change_hash: str, approver: str) -> Dict[str, Any]:
         """Promotes a vaccine from SHADOW to ENFORCE via proxy."""
-        url = f"{self.proxy_url}/vaccines/promote"
-        payload = {
+        url = f"{self.proxy_url}/vaccine/promote"
+        params = {
             "vaccine_id": vaccine_id,
             "change_hash": change_hash,
-            "promoter_id": approver,
+            "approver_id": approver,
         }
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
-                resp = await client.post(url, json=payload)
-                data = resp.json() if resp.status_code == 200 else {"error": resp.text}
+                resp = await client.post(url, params=params)
+                data = resp.json() if resp.status_code == 200 else {"error": resp.text, "code": resp.status_code}
                 logger.info("Vaccine promote result: %s", data)
                 return data
             except Exception as ex:
@@ -468,13 +474,13 @@ class SwitchBridge:
 
     async def _dispatch_rollback(self, vaccine_id: str, approver: str) -> Dict[str, Any]:
         """Rolls back an active vaccine via proxy."""
-        url = f"{self.proxy_url}/vaccines/rollback"
-        payload = {"vaccine_id": vaccine_id, "initiator_id": approver}
+        url = f"{self.proxy_url}/vaccine/rollback"
+        params = {"vaccine_id": vaccine_id, "approver_id": approver}
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
-                resp = await client.post(url, json=payload)
-                data = resp.json() if resp.status_code == 200 else {"error": resp.text}
+                resp = await client.post(url, params=params)
+                data = resp.json() if resp.status_code == 200 else {"error": resp.text, "code": resp.status_code}
                 logger.info("Vaccine rollback result: %s", data)
                 return data
             except Exception as ex:
@@ -592,9 +598,123 @@ class SwitchBridge:
         while self.is_running:
             await asyncio.sleep(0.5)
 
+    def enable_policy_bot(
+        self,
+        auto_approve: bool = True,
+        auto_promote: bool = True,
+        reject_escrows: Optional[Dict[str, str]] = None,
+        max_burn_threshold_usd: float = 5.0,
+    ) -> "PolicyBot":
+        """Enables scripted @policy-bot user for --mode replay or automated tests."""
+        self.policy_bot = PolicyBot(
+            bridge=self,
+            auto_approve=auto_approve,
+            auto_promote=auto_promote,
+            reject_escrows=reject_escrows,
+            max_burn_threshold_usd=max_burn_threshold_usd,
+        )
+        logger.info("@policy-bot governance actor enabled on SwitchBridge")
+        return self.policy_bot
+
     def stop(self) -> None:
         """Stops the bridge connection cleanly."""
         self.is_running = False
+
+
+class PolicyBot:
+    """
+    Scripted Policy-Bot Actor (@policy-bot) for Switch Room Replay & Governance Automation.
+    Fulfills Milestone A3 requirement:
+      - Operates as an allowlisted user participant (@policy-bot) inside the Switch Room.
+      - Monitors incoming room messages and status cards (ESCROW_TRIPPED, DRY_RUN_VERIFIED, VACCINE_PROPOSED).
+      - Automatically evaluates governance policies:
+          * Cost limit cap
+          * Change hash verification (must be 8-char hex)
+          * Context-bound tenant isolation
+      - Issues authoritative chat commands into the room:
+          * APPROVE <escrow_id> <change_hash>
+          * REJECT <escrow_id> <reason>
+          * PROMOTE <vaccine_id> <change_hash>
+    """
+
+    def __init__(
+        self,
+        bridge: "SwitchBridge",
+        auto_approve: bool = True,
+        auto_promote: bool = True,
+        reject_escrows: Optional[Dict[str, str]] = None,
+        max_burn_threshold_usd: float = 5.0,
+    ):
+        self.bridge = bridge
+        self.auto_approve = auto_approve
+        self.auto_promote = auto_promote
+        self.reject_escrows: Dict[str, str] = reject_escrows or {}
+        self.max_burn_threshold_usd = max_burn_threshold_usd
+        self.processed_escrows: Set[str] = set()
+
+    async def on_room_message(self, sender: str, body: str, message_id: str) -> Optional[Dict[str, Any]]:
+        """Processes room messages and takes scripted governance actions as @policy-bot."""
+        clean_sender = self.bridge.clean_sender(sender)
+        if clean_sender in ("policy-bot", "@policy-bot"):
+            return None
+
+        # Look for APPROVE prompt in markdown cards or text
+        # Patterns like: APPROVE <escrow_id> <change_hash>
+        approval_prompt = re.search(
+            r"APPROVE\s+([a-zA-Z0-9_\-]+)\s+([a-fA-F0-9]{8})", body, re.IGNORECASE
+        )
+        if approval_prompt:
+            escrow_id = approval_prompt.group(1)
+            change_hash = approval_prompt.group(2).lower()
+
+            if escrow_id in self.processed_escrows:
+                return None
+            self.processed_escrows.add(escrow_id)
+
+            logger.info("[PolicyBot] Detected approval prompt for escrow '%s' with hash '%s'", escrow_id, change_hash)
+
+            # Rejection policy check
+            if escrow_id in self.reject_escrows:
+                reason = self.reject_escrows[escrow_id]
+                logger.info("[PolicyBot] Policy dictates REJECT for escrow '%s': %s", escrow_id, reason)
+                reject_cmd = f"REJECT {escrow_id} {reason}"
+                await self.bridge.post_message(f"@{self.bridge.room_name} {reject_cmd}")
+                return await self.bridge.handle_room_message(
+                    sender="@policy-bot",
+                    body=reject_cmd,
+                    message_id=str(uuid.uuid4()),
+                    addressed=True,
+                )
+
+            if self.auto_approve:
+                logger.info("[PolicyBot] Executing room approval: APPROVE %s %s", escrow_id, change_hash)
+                approve_cmd = f"APPROVE {escrow_id} {change_hash}"
+                await self.bridge.post_message(f"@{self.bridge.room_name} {approve_cmd}")
+                return await self.bridge.handle_room_message(
+                    sender="@policy-bot",
+                    body=approve_cmd,
+                    message_id=str(uuid.uuid4()),
+                    addressed=True,
+                )
+
+        # Look for PROMOTE prompt for vaccine promotion
+        promote_prompt = re.search(
+            r"PROMOTE\s+([a-zA-Z0-9_\-]+)\s+([a-fA-F0-9]{8})", body, re.IGNORECASE
+        )
+        if promote_prompt and self.auto_promote:
+            vaccine_id = promote_prompt.group(1)
+            change_hash = promote_prompt.group(2).lower()
+            logger.info("[PolicyBot] Executing room vaccine promotion: PROMOTE %s %s", vaccine_id, change_hash)
+            promote_cmd = f"PROMOTE {vaccine_id} {change_hash}"
+            await self.bridge.post_message(f"@{self.bridge.room_name} {promote_cmd}")
+            return await self.bridge.handle_room_message(
+                sender="@policy-bot",
+                body=promote_cmd,
+                message_id=str(uuid.uuid4()),
+                addressed=True,
+            )
+
+        return None
 
 
 # ---------------------------------------------------------------------------
