@@ -526,11 +526,13 @@ const TechText = ({
       ctx.textAlign = 'left';
       ctx.textBaseline = 'bottom';
       ctx.fillStyle = accent;
-      ctx.globalAlpha = 0.62 * a;
+      ctx.globalAlpha = 0.85 * a;
+      const width = Math.round(glyph.box.x2 - glyph.box.x1);
+      const height = Math.round(glyph.box.y2 - glyph.box.y1);
       const label =
         moved > 1
           ? `${signed(Math.round(glyph.offset.x))}, ${signed(Math.round(-glyph.offset.y))}`
-          : `${glyph.char}  ${Math.round(glyph.box.x2 - glyph.box.x1)} × ${Math.round(glyph.box.y2 - glyph.box.y1)}`;
+          : `${width} × ${height}`;
       ctx.fillText(label, Math.round(frame.x1), Math.round(frame.y1) - 7);
       ctx.globalAlpha = 1;
     };

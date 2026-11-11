@@ -59,7 +59,7 @@ function mount() {
           introDuration={2}
           clickKick
           guides={false}
-          labels={false}
+          labels={true}
         />
       );
       roots.set(textEl, root);
@@ -89,7 +89,7 @@ function mount() {
           strokeWidth={1.5}
           specks={15}
           selection={true}
-          labels={false}
+          labels={true}
           draggable={true}
           bounce={0.4}
           clickKick={true}
