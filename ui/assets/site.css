@@ -444,6 +444,7 @@ body.is-landing main {
 body.is-landing .footer {
   width: 100% !important;
   max-width: 100% !important;
+  background: transparent !important;
 }
 
 /* MAIN CONTENT */
@@ -461,8 +462,10 @@ main {
   border-top: 1.5px solid #0F172A;
   font-family: 'DM Mono', monospace;
   font-size: 11px;
-  color: var(--text-muted);
-  background: #FFFFFF;
+  color: #475569;
+  background: transparent;
+  position: relative;
+  z-index: 2;
 }
 .footer-divider { margin: 0 8px; color: var(--border-subtle); }
 .footer-links {
