@@ -452,35 +452,11 @@ function landing(d) {
       </div>
     </section>
 
-    <!-- LIVE SIGNAL STAGE (MICROSLATS + TECHTEXT) -->
-    <section class="section">
-      <div class="section-head">
-        <div>
-          <div class="section-index">05 // LIVE TELEMETRY // REACT BITS</div>
-          <h2>Real-Time Wave Signal & Matrix</h2>
-        </div>
-        <span class="eyebrow" style="color:var(--acid);">INTERACTIVE MOUSE CURSOR SURFACE</span>
-      </div>
-      <div class="signal-section">
-        <div class="signal-stage">
-          <div data-effect="micro-slats" data-preset="swell" data-color="#06b6d4" style="width:100%; height:100%;"></div>
-          <div class="signal-overlay">
-            <div>
-              <span class="eyebrow" style="color:var(--acid);">SWITCHBLADE // TELEMETRY WAVE</span>
-              <p style="font-size:12px; color:var(--muted); margin:4px 0 0;">Move cursor over the canvas to interact with the 3D slat wave field.</p>
-            </div>
-            <strong>${number(s.total_trips)}<small style="font-size:14px; color:var(--muted); margin-left:12px;">CIRCUIT TRIPS DETECTED</small></strong>
-          </div>
-        </div>
-        <div class="signal-text" data-effect="tech-text" data-text="SWITCHBLADE"></div>
-      </div>
-    </section>
-
     <!-- TEAM & HACKATHON SECTION -->
     <section class="section">
       <div class="section-head">
         <div>
-          <div class="section-index">06 // FLIP THE SWITCH HACKATHON 2026</div>
+          <div class="section-index">05 // FLIP THE SWITCH HACKATHON 2026</div>
           <h2>Engineering Team 1</h2>
         </div>
       </div>
@@ -517,6 +493,33 @@ function landing(d) {
           </div>
           <small class="mono" style="color:var(--muted);">Wispr Flow Track ($500)</small>
         </div>
+      </div>
+    </section>
+
+    <!-- LIVE SIGNAL STAGE (MICROSLATS + TECHTEXT) -->
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-index">06 // LIVE TELEMETRY // REACT BITS</div>
+          <h2>Real-Time Wave Signal & Matrix</h2>
+        </div>
+        <span class="eyebrow" style="color:var(--primary);">INTERACTIVE MOUSE CURSOR SURFACE</span>
+      </div>
+      <div class="signal-section">
+        <div class="signal-stage">
+          <div data-effect="micro-slats" data-preset="swell" data-color="#06b6d4" style="width:100%; height:100%;"></div>
+          <div class="signal-overlay">
+            <div class="signal-badge">
+              <span class="signal-eyebrow">SWITCHBLADE // TELEMETRY WAVE</span>
+              <p class="signal-sub">Move cursor over the canvas to interact with the 3D slat wave field.</p>
+            </div>
+            <div class="signal-counter">
+              <strong class="signal-counter-num">${number(s.total_trips)}</strong>
+              <small class="signal-counter-label">CIRCUIT TRIPS DETECTED</small>
+            </div>
+          </div>
+        </div>
+        <div class="signal-text" data-effect="tech-text" data-text="SWITCHBLADE"></div>
       </div>
     </section>
   `;

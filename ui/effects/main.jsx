@@ -151,7 +151,7 @@ function mount() {
           logo="/logo.svg"
           ending="logo"
           loop={true}
-          loopDelay={isTopbar ? 1.0 : 1.6}
+          loopDelay={5.0}
           speed={isTopbar ? 1.2 : 1.0}
           logoSize={isTopbar ? 24 : 256}
           theme="dark"
