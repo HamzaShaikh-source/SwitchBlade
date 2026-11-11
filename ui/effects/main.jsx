@@ -8,6 +8,8 @@ import SpotlightCard from './SpotlightCard';
 import CountUp from './CountUp';
 import Particles from './Particles';
 import BlurText from './BlurText';
+import { TopographicFlow } from './components/topographic-flow';
+import { LiquidGlassLogo } from './components/liquid-glass-logo';
 
 const roots = new Map();
 
@@ -60,6 +62,94 @@ function mount() {
         />
       );
       roots.set(textEl, root);
+    }
+  });
+
+  // 2B. Hero TechText Wordmark (Official UI_SPEC.md Sec 2A props)
+  document.querySelectorAll('[data-effect="hero-tech-text"]').forEach((textEl) => {
+    if (!roots.has(textEl)) {
+      const root = createRoot(textEl);
+      root.render(
+        <TechText
+          text="SwitchBlade"
+          fontWeight={800}
+          fontSize={120}
+          letterSpacing={-0.04}
+          align="center"
+          color="#0F172A"
+          accentColor="#4F46E5"
+          reveal="letter"
+          reach={200}
+          softness={0.7}
+          dashLength={4}
+          dashGap={2}
+          lineStyle="dashed"
+          strokeWidth={1.5}
+          specks={15}
+          selection={true}
+          labels={true}
+          draggable={true}
+          bounce={0.4}
+          clickKick={true}
+          intro="assemble"
+          introDuration={2}
+          guides={true}
+          sweep={true}
+          speed={1}
+        />
+      );
+      roots.set(textEl, root);
+    }
+  });
+
+  // 2C. Hero Full-Bleed TopographicFlow (Official UI_SPEC.md Sec 2C props)
+  document.querySelectorAll('[data-effect="topographic-flow"]').forEach((el) => {
+    if (!roots.has(el)) {
+      const root = createRoot(el);
+      root.render(
+        <TopographicFlow
+          animateEntrance={true}
+          scale={480}
+          density={5}
+          speed={1.5}
+          distortion={2.4}
+          lineWidth={1}
+          opacity={1}
+          dashLength={7}
+          dashGap={8}
+          seed={42}
+          gradientDiffusion={0}
+          paused={false}
+          hover={0.6}
+          hoverRadius={200}
+          hoverFollow={0.16}
+          hoverFade={0.8}
+          hoverEffect="rings"
+          backgroundColor="#ffffff"
+          backgroundImage="none"
+          gradientColors={[]}
+          grain={0}
+          lineColor="#000000"
+          accentColor="#000000"
+          lineStyle="solid"
+        />
+      );
+      roots.set(el, root);
+    }
+  });
+
+  // 2D. Hero Right-Column Emblem Stage: LiquidGlassLogo (Official UI_SPEC.md Sec 2B props)
+  document.querySelectorAll('[data-effect="liquid-glass-logo"]').forEach((el) => {
+    if (!roots.has(el)) {
+      const root = createRoot(el);
+      root.render(
+        <LiquidGlassLogo
+          logo="/logo.svg"
+          ending="logo"
+          style={{ height: 480 }}
+        />
+      );
+      roots.set(el, root);
     }
   });
 
@@ -178,12 +268,12 @@ function mount() {
     root.render(
       <HoldButton
         size="md"
-        radius={2}
+        radius={4}
         fillDirection="right"
-        backgroundColor={approved ? '#242723' : '#aa442f'}
-        fillColor={approved ? '#d7fa67' : '#f5b9a7'}
-        textColor="#f1efe8"
-        fillTextColor="#242723"
+        backgroundColor={approved ? '#0F172A' : '#0F172A'}
+        fillColor={approved ? '#059669' : '#E11D48'}
+        textColor="#FFFFFF"
+        fillTextColor="#FFFFFF"
         holdTime={2000}
         disabled={approved && element.dataset.ready !== 'true'}
         doneLabel="Submitting…"

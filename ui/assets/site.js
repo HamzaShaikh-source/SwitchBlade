@@ -1,10 +1,11 @@
 // SwitchBlade Interactive Control Plane & Marketing Overhaul
 // React Bits integrated end-to-end (Particles, DecryptedText, SpotlightCard, CountUp, BlurText, HoldButton, MicroSlats, TechText)
 
-const route = location.pathname.replace(/\/$/, '') || '/';
+let route = location.pathname.replace(/\/$/, '') || '/';
 const pages = {
   '/': 'Landing',
-  '/overview': 'Overview',
+  '/workspace': 'Workspace',
+  '/overview': 'Workspace',
   '/activity': 'Activity',
   '/escrows': 'Escrows',
   '/vaccines': 'Vaccines',
@@ -19,8 +20,8 @@ const number = value => Number(value || 0).toLocaleString();
 const time = epoch => epoch ? new Date(epoch * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
 const chip = value => `<span class="chip ${clean(String(value || '').toLowerCase())}">${clean(value || 'UNKNOWN')}</span>`;
 const empty = (symbol, title, copy) => `<div class="empty"><div class="glyph">${symbol}</div><h2>${title}</h2><p>${copy}</p></div>`;
-const heading = (n, title, href, label) => `<div class="section-head"><div><div class="section-index">${n} // CONTROL PLANE</div><h2>${title}</h2></div>${href ? `<a class="text-link" href="${href}">${label} ↗</a>` : ''}</div>`;
-const header = (n, title, copy) => `<header class="page-header reveal" style="padding: 40px 0 25px; border-bottom: 1px solid var(--line);"><div><div class="eyebrow" style="font-family:'DM Mono'; font-size:11px; color:var(--acid); letter-spacing:.08em; margin-bottom:8px;">${n} // ${title.toUpperCase()}</div><h1 class="page-title" style="font-family:'Space Grotesk'; font-size:clamp(36px,5vw,64px); letter-spacing:-.05em; margin:0; color:#fff;">${title}<em>.</em></h1></div><p class="page-intro" style="color:var(--muted); font-size:14px; margin-top:10px; max-width:600px;">${copy}</p></header>`;
+const heading = (n, title, href, label) => `<div class="section-head"><div><div class="section-index">${n ? `${n} // ` : ''}CONTROL PLANE</div><h2>${title}</h2></div>${href ? `<a class="text-link" href="${href}">${label} ↗</a>` : ''}</div>`;
+const header = (n, title, copy) => `<header class="page-header reveal"><div><div class="eyebrow">${n ? `${n} // ` : ''}${title.toUpperCase()}</div><h1 class="page-title">${title}<em>.</em></h1></div><p class="page-intro">${copy}</p></header>`;
 const table = (heads, rows) => `<div class="table-wrap"><table class="data-table"><thead><tr>${heads.map(h => `<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
 
 // ---------------------------------------------------------------------------
@@ -187,35 +188,45 @@ function landing(d) {
   const s = d.stats || {};
   return `
     <section class="landing-hero">
-      <div data-effect="particles" class="hero-particles-stage" data-count="60" data-speed="0.45" aria-hidden="true"></div>
+      <!-- Full-Bleed Hero Background (ReactDrops TopographicFlow) -->
+      <div data-effect="topographic-flow" class="hero-topographic-bg" aria-hidden="true"></div>
+
+      <!-- Top Center Hero Wordmark Heading (ReactBits TechText) -->
+      <div class="hero-tech-text-wrap">
+        <div data-effect="hero-tech-text" class="hero-tech-text-inner"></div>
+      </div>
+
+      <!-- Hero Split Stage (Immediately Below TechText, Above the Fold) -->
       <div class="hero-grid">
-        <div class="hero-content">
+        <!-- Left Column (6 cols): Value Proposition Card + CTAs -->
+        <div class="hero-content-card">
           <div class="hero-eyebrow">
-            <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--acid); box-shadow:0 0 10px var(--acid);"></span>
+            <span class="eyebrow-dot"></span>
             <span data-effect="decrypted-text" data-text="IN-FLIGHT FINOPS // RUNTIME CIRCUIT BREAKER" data-animate-on="view" data-speed="35">IN-FLIGHT FINOPS // RUNTIME CIRCUIT BREAKER</span>
           </div>
           <h1 class="hero-title">
-            <span data-effect="blur-text" data-text="Autonomous Agents Spend Recklessly. SwitchBlade Stops Them In-Flight." data-delay="35">Autonomous Agents Spend Recklessly. SwitchBlade Stops Them In-Flight.</span>
+            <span data-effect="blur-text" data-text="Autonomous Agents Spend Recklessly. SwitchBlade Stops Them In-Flight." data-delay="30">Autonomous Agents Spend Recklessly. SwitchBlade Stops Them In-Flight.</span>
           </h1>
           <p class="hero-subtitle">
             When enterprise APIs break, autonomous AI workers don’t stop—they hallucinate, spin in infinite retry loops, and burn thousands of enterprise dollars in minutes. 
             <strong>SwitchBlade halts runaway execution, performs sub-second zero-token context surgery (97.7% prompt token reduction), routes around breaking schema changes with zero-retry vaccines, and anchors all human interventions into a cryptographic SHA-256 ledger.</strong>
           </p>
           <div class="hero-ctas">
-            <a href="/overview" class="btn primary" onclick="AudioFX.click()">Launch Control Plane ↗</a>
-            <button class="btn" style="border-color:var(--acid); color:var(--acid);" onclick="triggerDemoLoop()">Simulate Runaway Loop ⚡</button>
-            <a href="#sandbox" class="btn cyan" onclick="AudioFX.click()">Live Surgery Sandbox ↓</a>
+            <a href="/workspace" class="btn primary" onclick="AudioFX.click()">Enter Workspace ↗</a>
+            <button class="btn neo-action" onclick="triggerDemoLoop()">Trigger Live 422 Loop in Workspace ⚡</button>
+            <a href="#sandbox" class="btn outline" onclick="AudioFX.click()">Live Surgery Sandbox ↓</a>
           </div>
         </div>
 
-        <!-- 3D VISUAL EMBLEM -->
-        <div class="hero-visual-card">
-          <div class="hero-visual-art">
-            <img src="/ui/assets/hero_artwork.jpg" alt="SwitchBlade Holographic Blade Prism" onerror="this.src='/ui/assets/switchblade_blade_prism_1793806656878.jpg'">
-          </div>
-          <div class="hero-visual-status">
-            <span style="color:var(--acid);">● GUARDRAIL ARMED</span>
-            <span class="mono" style="color:var(--muted);">PROXY :8002 // ACTIVE</span>
+        <!-- Right Column (6 cols): 480px Tall Black-Stage ReactDrops LiquidGlassLogo -->
+        <div class="hero-stage-column">
+          <div class="hero-liquid-stage-card">
+            <div data-effect="liquid-glass-logo" class="hero-liquid-glass-mount"></div>
+            <div class="hero-stage-badge">
+              <span class="badge-status-dot"></span>
+              <span class="badge-status-text">SWITCHBLADE PRISM ENGINE</span>
+              <span class="badge-status-meta">SECURE RUNTIME // :8002</span>
+            </div>
           </div>
         </div>
       </div>
@@ -358,7 +369,7 @@ function landing(d) {
           <div class="section-index">03 // CORE CAPABILITIES</div>
           <h2>Enterprise Guardrails Built for Scale</h2>
         </div>
-        <a class="text-link" href="/overview" onclick="AudioFX.click()">Open Control Plane ↗</a>
+        <a class="text-link" href="/workspace" onclick="AudioFX.click()">Open Workspace ↗</a>
       </div>
       <div class="pillars-grid">
         <div data-effect="spotlight-card" data-spotlight="rgba(215, 250, 103, 0.16)" data-border="rgba(215, 250, 103, 0.45)" class="pillar-card">
@@ -520,7 +531,7 @@ function landing(d) {
 function overview(d) {
   const s = d.stats || {}, pending = Object.values(d.escrows || {}).filter(e => e.state === 'PENDING'), enforced = (d.vaccines || []).filter(v => v.status === 'ENFORCE');
   return `
-    ${header('01', 'Overview', 'Live operations across the worker gateway, review queue, and active rewrite rules.')}
+    ${header('', 'Workspace', 'Live operations across the worker gateway, review queue, and active rewrite rules.')}
     <section class="section">
       ${heading('01', 'System status', '/activity', 'View activity')}
       <div class="metrics-strip" style="margin-top:0;">
@@ -839,6 +850,12 @@ window.updateROI = function() {
 // ---------------------------------------------------------------------------
 function render() {
   document.body.classList.toggle('is-landing', route === '/');
+  document.querySelectorAll('[data-route]').forEach(a => {
+    const isAct = a.dataset.route === route || 
+                  (route === '/workspace' && a.dataset.route === '/overview') || 
+                  (route === '/overview' && a.dataset.route === '/workspace');
+    a.classList.toggle('active', isAct);
+  });
 
   const d = state || { stats: {}, escrows: {}, vaccines: [], ledger_head_seq: 0, ledger_head_hash: '—' };
   const key = JSON.stringify([route, d, events, entries]);
@@ -849,6 +866,7 @@ function render() {
 
   const viewMap = {
     '/': landing,
+    '/workspace': overview,
     '/overview': overview,
     '/activity': activity,
     '/escrows': escrows,
@@ -991,7 +1009,30 @@ if (soundToggle) {
 
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-step]');
-  if (b) step(b.dataset.escrow, b.dataset.step);
+  if (b) {
+    step(b.dataset.escrow, b.dataset.step);
+    return;
+  }
+  const a = e.target.closest('a');
+  if (a) {
+    const href = a.getAttribute('href');
+    if (href && pages[href]) {
+      e.preventDefault();
+      if (route !== href) {
+        history.pushState(null, '', href);
+        route = href;
+        lastKey = '';
+        render();
+        window.scrollTo(0, 0);
+      }
+    }
+  }
+});
+
+window.addEventListener('popstate', () => {
+  route = location.pathname.replace(/\/$/, '') || '/';
+  lastKey = '';
+  render();
 });
 document.addEventListener('switchblade:decision', e => decide(e.detail.escrowId, e.detail.approved));
 

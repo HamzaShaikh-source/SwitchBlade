@@ -31,7 +31,7 @@ import uvicorn
 from fastapi import FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from ledger import LedgerManager
 from schemas import (
@@ -471,6 +471,7 @@ app.mount("/ui/assets", StaticFiles(directory=os.path.join(os.path.dirname(__fil
 
 
 @app.get("/", response_class=HTMLResponse, tags=["UI"])
+@app.get("/workspace", response_class=HTMLResponse, tags=["UI"])
 @app.get("/overview", response_class=HTMLResponse, tags=["UI"])
 @app.get("/activity", response_class=HTMLResponse, tags=["UI"])
 @app.get("/escrows", response_class=HTMLResponse, tags=["UI"])
@@ -486,6 +487,22 @@ async def get_dashboard():
             return HTMLResponse(content=f.read())
     return HTMLResponse(
         content="<h1>SwitchBlade Control Plane</h1><p>ui/dashboard.html not found.</p>",
+        status_code=404,
+    )
+
+
+@app.get("/logo.svg", tags=["UI"])
+async def get_logo():
+    """Serves the geometric SwitchBlade vector logo directly for ReactDrops / CDN consumption."""
+    logo_path = os.path.join(os.path.dirname(__file__), "ui", "assets", "logo.svg")
+    if not os.path.exists(logo_path):
+        logo_path = os.path.join(os.path.dirname(__file__), "logo.svg")
+    if os.path.exists(logo_path):
+        with open(logo_path, "r", encoding="utf-8") as f:
+            return Response(content=f.read(), media_type="image/svg+xml")
+    return Response(
+        content='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" fill="#0F172A"/></svg>',
+        media_type="image/svg+xml",
         status_code=404,
     )
 

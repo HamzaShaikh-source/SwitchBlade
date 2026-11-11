@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#070a12">
+  <meta name="theme-color" content="#F8FAFC">
   <title>SwitchBlade — Autonomous In-Flight FinOps & Control Plane</title>
+  <link rel="icon" type="image/svg+xml" href="/logo.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -18,14 +19,14 @@
   <div class="site-frame">
     <header class="topbar">
       <a class="wordmark" href="/" aria-label="SwitchBlade Homepage">
-        <span class="mark" aria-hidden="true">S<span>/</span>B</span>
+        <span class="mark" aria-hidden="true"><img src="/logo.svg" alt="" width="22" height="22" style="display:block;"></span>
         <span>SWITCH<br>BLADE</span>
       </a>
       <span class="topbar-note">AUTONOMOUS SYSTEMS // IN-FLIGHT FINOPS</span>
       <button class="menu-toggle" type="button" aria-controls="site-nav" aria-expanded="false">MENU <span aria-hidden="true">↗</span></button>
       <nav id="site-nav" aria-label="Primary navigation">
         <a href="/" data-route="/">Landing</a>
-        <a href="/overview" data-route="/overview">Overview</a>
+        <a href="/workspace" data-route="/workspace">Workspace</a>
         <a href="/activity" data-route="/activity">Activity</a>
         <a href="/escrows" data-route="/escrows">Escrows</a>
         <a href="/vaccines" data-route="/vaccines">Vaccines</a>
@@ -35,16 +36,16 @@
       </nav>
       <div class="topbar-actions">
         <button id="soundToggle" class="sound-toggle" type="button" title="Toggle audio synthesizer">🔊 SFX ON</button>
-        <a href="/overview" class="btn topbar-cta">Control Plane ↗</a>
+        <a href="/workspace" class="btn topbar-cta">Workspace ↗</a>
         <span id="connection" class="connection"><i></i> CONNECTING</span>
       </div>
     </header>
 
     <aside class="workspace-rail" aria-label="Workspace navigation">
-      <div class="rail-section-label">01 / NAVIGATION</div>
+      <div class="rail-section-label">WORKSPACE</div>
       <nav class="rail-nav" aria-label="Workspace pages">
         <a href="/" data-route="/"><span>00</span> Landing <b>↗</b></a>
-        <a href="/overview" data-route="/overview"><span>01</span> Overview <b>↗</b></a>
+        <a href="/workspace" data-route="/workspace"><span>01</span> Workspace <b>↗</b></a>
         <a href="/activity" data-route="/activity"><span>02</span> Activity <b>↗</b></a>
         <a href="/escrows" data-route="/escrows"><span>03</span> Escrows <b>↗</b></a>
         <a href="/vaccines" data-route="/vaccines"><span>04</span> Vaccines <b>↗</b></a>
