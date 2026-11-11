@@ -113,13 +113,15 @@ button { cursor: pointer; }
   align-items: center;
   border-bottom: 1.5px solid #0F172A;
   padding: 0 clamp(20px, 3.2vw, 48px);
-  gap: 24px;
+  gap: clamp(12px, 1.8vw, 24px);
   position: sticky;
   top: 0;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   z-index: 100;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .wordmark {
@@ -156,23 +158,28 @@ button { cursor: pointer; }
   font-weight: 700;
   color: var(--text-muted);
   letter-spacing: .08em;
+  white-space: nowrap;
+  flex: none;
 }
 
 nav#site-nav {
   display: flex;
   align-items: center;
-  gap: clamp(6px, 1.2vw, 16px);
+  gap: clamp(4px, 1vw, 14px);
   margin-left: auto;
+  flex-shrink: 1;
+  min-width: 0;
 }
 nav#site-nav a {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);
   position: relative;
-  padding: 8px 14px;
+  padding: 8px clamp(8px, 1vw, 14px);
   border-radius: 6px;
   transition: all 0.15s ease;
   letter-spacing: -.01em;
+  white-space: nowrap;
 }
 nav#site-nav a:hover {
   color: #0F172A;
@@ -190,6 +197,7 @@ nav#site-nav a.active {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .btn.topbar-cta,
@@ -393,13 +401,23 @@ body.is-landing .workspace-rail {
 body.is-landing .site-frame {
   display: flex !important;
   flex-direction: column !important;
-  max-width: 1440px !important;
-  margin: 0 auto !important;
+  max-width: 100% !important;
+  margin: 0 !important;
   width: 100% !important;
 }
+body.is-landing .topbar {
+  width: 100% !important;
+  max-width: 100% !important;
+}
 body.is-landing main {
+  max-width: 1440px !important;
+  margin: 0 auto !important;
   padding: 0 clamp(20px, 3.5vw, 48px) 80px !important;
   width: 100% !important;
+}
+body.is-landing .footer {
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
 /* MAIN CONTENT */
@@ -1445,8 +1463,11 @@ body:not(.is-landing) .full-page-topographic-bg {
 }
 
 /* RESPONSIVE BREAKPOINTS */
-@media(max-width: 1080px) {
+@media(max-width: 1280px) {
   .topbar-note { display: none; }
+}
+
+@media(max-width: 1080px) {
   .hero-grid { grid-template-columns: 1fr; }
   .metrics-strip { grid-template-columns: repeat(2, 1fr); }
   .architecture-flow { grid-template-columns: repeat(3, 1fr); }
