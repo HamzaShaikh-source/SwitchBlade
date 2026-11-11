@@ -1033,6 +1033,18 @@ window.addEventListener('popstate', () => {
 });
 document.addEventListener('switchblade:decision', e => decide(e.detail.escrowId, e.detail.approved));
 
+// Ensure refresh always starts at top of page
+if (typeof history !== 'undefined' && 'scrollRestoration' in history) {
+  history.scrollRestoration = 'manual';
+}
+window.addEventListener('beforeunload', () => {
+  window.scrollTo(0, 0);
+});
+window.addEventListener('DOMContentLoaded', () => {
+  window.scrollTo(0, 0);
+});
+window.scrollTo(0, 0);
+
 render();
 refresh();
 setInterval(refresh, 2500);

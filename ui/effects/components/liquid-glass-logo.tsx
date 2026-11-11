@@ -335,11 +335,17 @@ export const LiquidGlassLogo = forwardRef<LiquidGlassLogoHandle, LiquidGlassLogo
         style={{
           height,
           background: tuning.background,
+          cursor: 'pointer',
           ...style,
         }}
         role="img"
         aria-label={label ?? (tuning.ending === 'logo' ? 'Logo' : tuning.text)}
         data-liquid-glass-ready={ready || undefined}
+        onClick={(e) => {
+          e.stopPropagation();
+          engine.current?.replay();
+          seekVideo(0);
+        }}
       >
         {backgroundVideo ? (
           <video

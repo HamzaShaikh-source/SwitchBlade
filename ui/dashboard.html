@@ -11,6 +11,12 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/ui/assets/site.css">
   <link rel="stylesheet" href="/ui/assets/effects.css">
+  <script>
+    if (typeof history !== 'undefined' && 'scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    window.scrollTo(0, 0);
+  </script>
   <script src="/ui/assets/site.js" defer></script>
   <script src="/ui/assets/effects.js" defer></script>
 </head>
@@ -21,7 +27,11 @@
   <div class="site-frame">
     <header class="topbar">
       <a class="wordmark" href="/" aria-label="SwitchBlade Homepage">
-        <span class="mark" aria-hidden="true"><img src="/logo.svg" alt="" width="22" height="22" style="display:block;"></span>
+        <span class="mark" aria-hidden="true" title="SwitchBlade Prism (Tap to replay)">
+          <div data-effect="liquid-glass-logo" data-size="topbar" class="topbar-liquid-glass-mount">
+            <img src="/logo.svg" alt="" width="22" height="22" style="display:block;">
+          </div>
+        </span>
         <span>SWITCH<br>BLADE</span>
       </a>
       <span class="topbar-note">AUTONOMOUS SYSTEMS // IN-FLIGHT FINOPS</span>

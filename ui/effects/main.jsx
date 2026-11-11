@@ -140,15 +140,26 @@ function mount() {
     }
   });
 
-  // 2D. Hero Right-Column Emblem Stage: LiquidGlassLogo (Official UI_SPEC.md Sec 2B props)
+  // 2D. Hero & Topbar Emblem Stage: LiquidGlassLogo (Official UI_SPEC.md Sec 2B props)
   document.querySelectorAll('[data-effect="liquid-glass-logo"]').forEach((el) => {
     if (!roots.has(el)) {
+      const isTopbar = el.dataset.size === 'topbar';
       const root = createRoot(el);
       root.render(
         <LiquidGlassLogo
           logo="/logo.svg"
           ending="logo"
-          style={{ height: 480 }}
+          loop={true}
+          loopDelay={isTopbar ? 1.2 : 1.6}
+          speed={isTopbar ? 1.2 : 1.0}
+          logoSize={isTopbar ? 26 : 64}
+          theme="dark"
+          background="#000000"
+          style={{
+            width: isTopbar ? 40 : '100%',
+            height: isTopbar ? 40 : 480,
+            cursor: 'pointer',
+          }}
         />
       );
       roots.set(el, root);
