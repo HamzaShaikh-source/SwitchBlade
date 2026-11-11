@@ -145,6 +145,7 @@ const TechText = ({
 
     const fontsLoaded = () => {
       fontsReady = true;
+      introClock = 0;
       refreshFonts();
     };
 
@@ -222,7 +223,7 @@ const TechText = ({
       const wanted = fontFor(s, 64);
       if (document.fonts && wanted !== requestedFont) {
         requestedFont = wanted;
-        document.fonts.load(wanted, s.text).then(refreshFonts, refreshFonts);
+        document.fonts.load(wanted, s.text).then(fontsLoaded, fontsLoaded);
       }
 
       const probe = scratchCtx;

@@ -72,7 +72,7 @@ body {
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -97,6 +97,8 @@ button { cursor: pointer; }
 
 /* SITE FRAME & LAYOUT */
 .site-frame {
+  position: relative;
+  z-index: 1;
   max-width: 100%;
   margin: 0 auto;
   min-height: 100dvh;

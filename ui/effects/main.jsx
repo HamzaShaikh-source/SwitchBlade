@@ -127,7 +127,7 @@ function mount() {
           hoverFollow={0.16}
           hoverFade={0.8}
           hoverEffect="rings"
-          backgroundColor="transparent"
+          backgroundColor="#F8FAFC"
           backgroundImage="none"
           gradientColors={[]}
           grain={0}
