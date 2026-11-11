@@ -134,3 +134,15 @@ video.liquid-glass-logo-background {
   height: 0.8em;
   width: auto;
 }
+
+.topbar-liquid-glass-mount .liquid-glass-logo {
+  min-height: 0 !important;
+  width: 40px !important;
+  height: 40px !important;
+}
+.topbar-liquid-glass-mount .liquid-glass-logo > canvas {
+  min-height: 0 !important;
+  width: 40px !important;
+  height: 40px !important;
+}
+

@@ -536,38 +536,8 @@ const TechText = ({
     };
 
     const drawLines = (s, view, accent, alpha, growth) => {
-      const pad = Math.max(12, view.size * 0.12);
-      const x1 = Math.round(view.left - pad);
-      const x2 = Math.round(view.right + pad);
-      const room = width - x2 > x1;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.strokeStyle = accent;
-      ctx.fillStyle = accent;
-      ctx.lineWidth = 1;
-      ctx.font = LABEL_FONT;
-      ctx.textBaseline = 'middle';
-      ctx.textAlign = room ? 'left' : 'right';
-      view.lines.forEach((line, k) => {
-        const grow = growth(k);
-        if (grow <= 0.001) return;
-        const y = crisp(line.y);
-        const end = x1 + (x2 - x1) * grow;
-        ctx.globalAlpha = alpha * 0.4;
-        ctx.beginPath();
-        ctx.moveTo(x1, y);
-        ctx.lineTo(end, y);
-        ctx.stroke();
-        ctx.globalAlpha = alpha * 0.9;
-        ctx.fillRect(x1 - 1, Math.round(line.y) - 1, 3, 3);
-        ctx.fillRect(Math.round(end) - 1, Math.round(line.y) - 1, 3, 3);
-        if (s.labels) {
-          ctx.globalAlpha = alpha * 0.62 * smoothstep(0.7, 1, grow);
-          ctx.fillText(line.label, room ? x2 + 8 : x1 - 8, Math.round(line.y));
-        }
-      });
-      ctx.textAlign = 'left';
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.globalAlpha = 1;
+      // Immediate no-op: horizontal guide lines, tick boxes, and labels are never drawn
+      return;
     };
 
     const ensureCells = (glyph, view) => {

@@ -111,6 +111,7 @@ button { cursor: pointer; }
   height: 76px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   border-bottom: 1.5px solid #0F172A;
   padding: 0 clamp(20px, 3.2vw, 48px);
   gap: clamp(12px, 1.8vw, 24px);
@@ -166,11 +167,13 @@ button { cursor: pointer; }
 .topbar-liquid-glass-mount .liquid-glass-logo {
   width: 40px !important;
   height: 40px !important;
+  min-height: 0 !important;
 }
 .topbar-liquid-glass-mount canvas {
   width: 40px !important;
   height: 40px !important;
   display: block !important;
+  min-height: 0 !important;
 }
 
 .topbar-note {
@@ -186,17 +189,18 @@ button { cursor: pointer; }
 nav#site-nav {
   display: flex;
   align-items: center;
-  gap: clamp(4px, 1vw, 14px);
-  margin-left: auto;
-  flex-shrink: 1;
+  justify-content: center;
+  gap: clamp(8px, 1.4vw, 20px);
+  flex: 1;
+  margin: 0 clamp(16px, 2.4vw, 36px);
   min-width: 0;
 }
 nav#site-nav a {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--text-muted);
   position: relative;
-  padding: 8px clamp(8px, 1vw, 14px);
+  padding: 8px clamp(10px, 1.2vw, 16px);
   border-radius: 6px;
   transition: all 0.15s ease;
   letter-spacing: -.01em;
@@ -218,7 +222,8 @@ nav#site-nav a.active {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex-shrink: 0;
+  flex: none;
+  margin-left: auto;
 }
 
 .btn.topbar-cta,
@@ -1542,15 +1547,18 @@ body:not(.is-landing) .full-page-topographic-bg {
     top: 64px;
     left: 0;
     right: 0;
+    margin: 0;
     background: #FFFFFF;
     border-bottom: 1.5px solid #0F172A;
     padding: 14px 20px;
     flex-direction: column;
     align-items: stretch;
+    justify-content: flex-start;
     gap: 6px;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
   }
   .topbar nav#site-nav.open { display: flex; }
+  .topbar-actions { margin-left: 0; }
   .topbar-cta { display: none; }
   .metrics-strip { grid-template-columns: 1fr; }
   .architecture-flow { grid-template-columns: 1fr; }

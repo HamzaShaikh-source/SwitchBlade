@@ -59,6 +59,7 @@ function mount() {
           introDuration={2}
           clickKick
           guides={false}
+          labels={false}
         />
       );
       roots.set(textEl, root);
@@ -88,13 +89,13 @@ function mount() {
           strokeWidth={1.5}
           specks={15}
           selection={true}
-          labels={true}
+          labels={false}
           draggable={true}
           bounce={0.4}
           clickKick={true}
           intro="assemble"
           introDuration={2}
-          guides={true}
+          guides={false}
           sweep={true}
           speed={1}
           style={{ width: '100%', height: 140, minHeight: 140 }}
@@ -150,16 +151,16 @@ function mount() {
           logo="/logo.svg"
           ending="logo"
           loop={true}
-          loopDelay={isTopbar ? 1.2 : 1.6}
+          loopDelay={isTopbar ? 1.0 : 1.6}
           speed={isTopbar ? 1.2 : 1.0}
-          logoSize={isTopbar ? 26 : 64}
+          logoSize={isTopbar ? 24 : 256}
           theme="dark"
           background="#000000"
-          style={{
-            width: isTopbar ? 40 : '100%',
-            height: isTopbar ? 40 : 480,
-            cursor: 'pointer',
-          }}
+          style={
+            isTopbar
+              ? { width: 40, height: 40, minHeight: 0, cursor: 'pointer' }
+              : { width: '100%', height: 480, cursor: 'pointer' }
+          }
         />
       );
       roots.set(el, root);
