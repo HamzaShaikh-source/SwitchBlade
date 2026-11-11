@@ -190,8 +190,9 @@ nav#site-nav a.active {
   gap: 12px;
 }
 
+.btn.topbar-cta,
 .topbar-cta {
-  background: #4F46E5;
+  background: #4F46E5 !important;
   color: #FFFFFF !important;
   font-weight: 700;
   font-size: 12px;
@@ -204,11 +205,14 @@ nav#site-nav a.active {
   box-shadow: 3px 3px 0px #0F172A;
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
+.btn.topbar-cta:hover,
 .topbar-cta:hover {
-  background: #4338CA;
+  background: #4338CA !important;
+  color: #FFFFFF !important;
   transform: translate(-1px, -1px);
   box-shadow: 4px 4px 0px #0F172A;
 }
+.btn.topbar-cta:active,
 .topbar-cta:active {
   transform: translate(1px, 1px);
   box-shadow: 2px 2px 0px #0F172A;
@@ -444,15 +448,25 @@ main {
   width: 100%;
 }
 
-/* Full-Bleed TopographicFlow Background Canvas */
-.hero-topographic-bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+/* Full-Page Background (ReactDrops TopographicFlow) */
+.full-page-topographic-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   z-index: 0;
   pointer-events: none;
   opacity: 0.95;
+  transition: opacity 0.3s ease;
+}
+.full-page-topographic-bg .topographic-flow {
+  width: 100vw;
+  height: 100vh;
+  background: transparent !important;
+}
+body:not(.is-landing) .full-page-topographic-bg {
+  opacity: 0.35;
 }
 
 /* Top Center Hero Wordmark (ReactBits TechText) */
@@ -462,7 +476,8 @@ main {
   width: 100%;
   max-width: 1160px;
   height: 140px;
-  margin: 0 auto 24px;
+  min-height: 140px;
+  margin: 0 auto 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -470,6 +485,24 @@ main {
 .hero-tech-text-inner {
   width: 100%;
   height: 100%;
+  min-height: 140px;
+  position: relative;
+  display: block;
+}
+.tech-text {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 140px;
+  display: block;
+}
+.tech-text-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
 }
 
 /* Hero Split Stage (Immediately Below Wordmark, Above the Fold) */

@@ -72,9 +72,10 @@ function mount() {
       root.render(
         <TechText
           text="SwitchBlade"
+          fontFamily="'Space Grotesk', -apple-system, sans-serif"
           fontWeight={800}
-          fontSize={120}
-          letterSpacing={-0.04}
+          fontSize={110}
+          letterSpacing={-0.03}
           align="center"
           color="#0F172A"
           accentColor="#4F46E5"
@@ -96,13 +97,14 @@ function mount() {
           guides={true}
           sweep={true}
           speed={1}
+          style={{ width: '100%', height: 140, minHeight: 140 }}
         />
       );
       roots.set(textEl, root);
     }
   });
 
-  // 2C. Hero Full-Bleed TopographicFlow (Official UI_SPEC.md Sec 2C props)
+  // 2C. Full-Page TopographicFlow (Official UI_SPEC.md Sec 2C props)
   document.querySelectorAll('[data-effect="topographic-flow"]').forEach((el) => {
     if (!roots.has(el)) {
       const root = createRoot(el);
@@ -125,7 +127,7 @@ function mount() {
           hoverFollow={0.16}
           hoverFade={0.8}
           hoverEffect="rings"
-          backgroundColor="#ffffff"
+          backgroundColor="transparent"
           backgroundImage="none"
           gradientColors={[]}
           grain={0}

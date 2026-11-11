@@ -114,7 +114,7 @@ const TechText = ({
     let dpr = 1;
     let raf = 0;
     let last = performance.now();
-    let visible = false;
+    let visible = true;
     let alive = true;
     let layoutKey = '';
     let requestedFont = '';
@@ -129,7 +129,7 @@ const TechText = ({
     let introClock = 0;
     let introKind = '';
     let introducing = false;
-    let fontsReady = !document.fonts;
+    let fontsReady = true;
     let guideAlpha = 0;
     const kicks = [];
     const press = { x: 0, y: 0, time: 0, index: -1 };
@@ -148,7 +148,7 @@ const TechText = ({
       refreshFonts();
     };
 
-    const family = s => s.fontFamily || getComputedStyle(container).fontFamily || 'sans-serif';
+    const family = s => s.fontFamily || getComputedStyle(container).fontFamily || "'Space Grotesk', 'DM Sans', -apple-system, sans-serif";
     const fontFor = (s, size) => `${s.fontWeight} ${size}px ${family(s)}`;
 
     const palette = s => {
@@ -165,11 +165,15 @@ const TechText = ({
     };
 
     const sprite = (s, view, glyph, stroke, ink) => {
-      const pad = Math.ceil(s.strokeWidth * 2 + 4);
-      const left = glyph.box.x1 - pad;
-      const top = glyph.box.y1 - pad;
-      const w = glyph.box.x2 - glyph.box.x1 + pad * 2;
-      const h = glyph.box.y2 - glyph.box.y1 + pad * 2;
+      const pad = Math.ceil(s.strokeWidth * 2 + 6);
+      const bLeft = glyph.box.x1 || 0;
+      const bTop = glyph.box.y1 || 0;
+      const bRight = glyph.box.x2 || (bLeft + 20);
+      const bBottom = glyph.box.y2 || (bTop + 20);
+      const left = bLeft - pad;
+      const top = bTop - pad;
+      const w = Math.max(12, bRight - bLeft + pad * 2);
+      const h = Math.max(12, bBottom - bTop + pad * 2);
       const image = document.createElement('canvas');
       image.width = Math.max(1, Math.ceil(w * dpr));
       image.height = Math.max(1, Math.ceil(h * dpr));
@@ -224,34 +228,52 @@ const TechText = ({
       const probe = scratchCtx;
       setFont(probe, s, s.fontSize);
       let m = probe.measureText(s.text);
+      const mLeft = m.actualBoundingBoxLeft !== undefined ? m.actualBoundingBoxLeft : 0;
+      const mRight = m.actualBoundingBoxRight !== undefined ? m.actualBoundingBoxRight : (m.width || 1);
+      const mAscent = m.actualBoundingBoxAscent !== undefined ? m.actualBoundingBoxAscent : s.fontSize * 0.75;
+      const mDescent = m.actualBoundingBoxDescent !== undefined ? m.actualBoundingBoxDescent : s.fontSize * 0.25;
+      const textWidth = Math.max(mLeft + mRight, m.width || 1, 1);
+      const textHeight = Math.max(mAscent + mDescent, s.fontSize * 0.8, 1);
       const fit = Math.min(
         1,
-        (width * 0.9) / Math.max(m.actualBoundingBoxLeft + m.actualBoundingBoxRight, 1),
-        (height * 0.66) / Math.max(m.actualBoundingBoxAscent + m.actualBoundingBoxDescent, 1)
+        (width * 0.9) / textWidth,
+        (height * 0.72) / textHeight
       );
-      const size = s.fontSize * fit;
+      const size = Math.max(28, s.fontSize * fit);
       setFont(probe, s, size);
       m = probe.measureText(s.text);
-      const inkWidth = m.actualBoundingBoxLeft + m.actualBoundingBoxRight;
-      const inkHeight = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+      const finalLeft = m.actualBoundingBoxLeft !== undefined ? m.actualBoundingBoxLeft : 0;
+      const finalRight = m.actualBoundingBoxRight !== undefined ? m.actualBoundingBoxRight : (m.width || 1);
+      const finalAscent = m.actualBoundingBoxAscent !== undefined ? m.actualBoundingBoxAscent : size * 0.75;
+      const finalDescent = m.actualBoundingBoxDescent !== undefined ? m.actualBoundingBoxDescent : size * 0.25;
+      const inkWidth = Math.max(finalLeft + finalRight, m.width || 1);
+      const inkHeight = Math.max(finalAscent + finalDescent, size * 0.8);
       const margin = width * 0.05;
       const start =
         s.align === 'left' ? margin : s.align === 'right' ? width - margin - inkWidth : (width - inkWidth) / 2;
-      const x = start + m.actualBoundingBoxLeft;
-      const baseline = (height - inkHeight) / 2 + m.actualBoundingBoxAscent;
-      const xHeight = baseline - probe.measureText('x').actualBoundingBoxAscent;
-      const capHeight = baseline - probe.measureText('H').actualBoundingBoxAscent;
-      const ascender = baseline - probe.measureText('d').actualBoundingBoxAscent;
-      const descender = baseline + probe.measureText('p').actualBoundingBoxDescent;
-      const top = baseline - m.actualBoundingBoxAscent;
-      const bottom = baseline + m.actualBoundingBoxDescent;
+      const x = start + finalLeft;
+      const baseline = (height - inkHeight) / 2 + finalAscent;
+      const xMeasure = probe.measureText('x');
+      const hMeasure = probe.measureText('H');
+      const dMeasure = probe.measureText('d');
+      const pMeasure = probe.measureText('p');
+      const xAscent = xMeasure.actualBoundingBoxAscent !== undefined ? xMeasure.actualBoundingBoxAscent : size * 0.5;
+      const hAscent = hMeasure.actualBoundingBoxAscent !== undefined ? hMeasure.actualBoundingBoxAscent : size * 0.72;
+      const dAscent = dMeasure.actualBoundingBoxAscent !== undefined ? dMeasure.actualBoundingBoxAscent : size * 0.75;
+      const pDescent = pMeasure.actualBoundingBoxDescent !== undefined ? pMeasure.actualBoundingBoxDescent : size * 0.25;
+      const xHeight = baseline - xAscent;
+      const capHeight = baseline - hAscent;
+      const ascender = baseline - dAscent;
+      const descender = baseline + pDescent;
+      const top = baseline - finalAscent;
+      const bottom = baseline + finalDescent;
       const inkTop = Math.min(top, capHeight) - 2;
       const inkBottom = Math.max(bottom, baseline) + 2;
       const next = {
         size,
         baseline,
-        left: x - m.actualBoundingBoxLeft,
-        right: x + m.actualBoundingBoxRight,
+        left: x - finalLeft,
+        right: x + finalRight,
         top,
         bottom,
         lines: [
@@ -277,16 +299,20 @@ const TechText = ({
       chars.forEach((char, i) => {
         prefix += char;
         const own = probe.measureText(char);
-        const gx = x + probe.measureText(prefix).width - own.width;
+        const gx = x + (probe.measureText(prefix).width || (i * size * 0.6)) - (own.width || size * 0.6);
         if (!char.trim()) return;
+        const charLeft = own.actualBoundingBoxLeft !== undefined ? own.actualBoundingBoxLeft : 0;
+        const charRight = own.actualBoundingBoxRight !== undefined ? own.actualBoundingBoxRight : (own.width || size * 0.6);
+        const charAscent = own.actualBoundingBoxAscent !== undefined ? own.actualBoundingBoxAscent : size * 0.75;
+        const charDescent = own.actualBoundingBoxDescent !== undefined ? own.actualBoundingBoxDescent : size * 0.25;
         const base = {
           char,
           x: gx,
           box: {
-            x1: gx - own.actualBoundingBoxLeft,
-            y1: baseline - own.actualBoundingBoxAscent,
-            x2: gx + own.actualBoundingBoxRight,
-            y2: baseline + own.actualBoundingBoxDescent
+            x1: gx - charLeft,
+            y1: baseline - charAscent,
+            x2: gx + charRight,
+            y2: baseline + charDescent
           }
         };
         const kept = previous[glyphs.length];
@@ -598,6 +624,10 @@ const TechText = ({
 
     const drawAssembling = (glyph, progress, accent) => {
       const cells = glyph.cells || [];
+      if (cells.length === 0) {
+        blit(ctx, glyph.fill, glyph.offset.x, glyph.offset.y, 0, 0);
+        return;
+      }
       ctx.save();
       ctx.beginPath();
       let landed = 0;
@@ -877,8 +907,11 @@ const TechText = ({
     wakeRef.current = wake;
 
     const resize = () => {
-      width = Math.max(1, container.clientWidth);
-      height = Math.max(1, container.clientHeight);
+      const parent = container.parentElement;
+      const parentW = parent ? parent.clientWidth : 0;
+      const parentH = parent ? parent.clientHeight : 0;
+      width = Math.max(300, container.clientWidth || parentW || 1160);
+      height = Math.max(120, container.clientHeight || parentH || 140);
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
@@ -984,8 +1017,32 @@ const TechText = ({
   }, []);
 
   return (
-    <div ref={containerRef} className={`tech-text ${className}`.trim()} style={style} role="img" aria-label={text}>
-      <canvas ref={canvasRef} className="tech-text-canvas" />
+    <div
+      ref={containerRef}
+      className={`tech-text ${className}`.trim()}
+      style={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        minHeight: 140,
+        display: 'block',
+        ...style
+      }}
+      role="img"
+      aria-label={text}
+    >
+      <canvas
+        ref={canvasRef}
+        className="tech-text-canvas"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          display: 'block'
+        }}
+      />
     </div>
   );
 };

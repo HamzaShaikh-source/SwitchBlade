@@ -188,9 +188,6 @@ function landing(d) {
   const s = d.stats || {};
   return `
     <section class="landing-hero">
-      <!-- Full-Bleed Hero Background (ReactDrops TopographicFlow) -->
-      <div data-effect="topographic-flow" class="hero-topographic-bg" aria-hidden="true"></div>
-
       <!-- Top Center Hero Wordmark Heading (ReactBits TechText) -->
       <div class="hero-tech-text-wrap">
         <div data-effect="hero-tech-text" class="hero-tech-text-inner"></div>
