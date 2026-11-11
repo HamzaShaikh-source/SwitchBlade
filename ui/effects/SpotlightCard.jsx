@@ -5,7 +5,8 @@ export default function SpotlightCard({
   className = '',
   spotlightColor = 'rgba(215, 250, 103, 0.15)',
   borderColor = 'rgba(215, 250, 103, 0.4)',
-  radius = 16,
+  radius = 10,
+  style = {},
   ...props
 }) {
   const divRef = useRef(null);
@@ -46,11 +47,18 @@ export default function SpotlightCard({
       onBlur={handleBlur}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`spotlight-card ${className}`}
+      className={`spotlight-card ${className}`.trim()}
       style={{
         position: 'relative',
+        width: '100%',
+        height: '100%',
+        minHeight: 'inherit',
         borderRadius: `${radius}px`,
         overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+        ...style,
       }}
       {...props}
     >
@@ -80,11 +88,23 @@ export default function SpotlightCard({
           mask: `radial-gradient(350px circle at ${position.x}px ${position.y}px, black, transparent 70%)`,
           WebkitMask: `radial-gradient(350px circle at ${position.x}px ${position.y}px, black, transparent 70%)`,
           pointerEvents: 'none',
-          border: `1px solid ${borderColor}`,
+          border: `1.5px solid ${borderColor}`,
           zIndex: 2,
         }}
       />
-      <div style={{ position: 'relative', zIndex: 3 }}>
+      <div
+        className="spotlight-content"
+        style={{
+          position: 'relative',
+          zIndex: 3,
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          flex: 1,
+        }}
+      >
         {children}
       </div>
     </div>

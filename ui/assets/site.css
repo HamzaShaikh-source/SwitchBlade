@@ -1458,8 +1458,30 @@ body:not(.is-landing) .full-page-topographic-bg {
   display: inline-block;
 }
 
+/* SPOTLIGHT CARD CONTAINER & OVERLAYS */
+[data-effect="spotlight-card"] {
+  padding: 0 !important;
+  overflow: hidden !important;
+  position: relative !important;
+}
+
 .spotlight-card {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: inherit !important;
   border-radius: 10px;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
+}
+
+.spotlight-inner-slot {
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 /* RESPONSIVE BREAKPOINTS */

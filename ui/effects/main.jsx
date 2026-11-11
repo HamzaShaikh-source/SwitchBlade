@@ -240,11 +240,30 @@ function mount() {
       const innerHTML = el.innerHTML;
       const spotlight = el.dataset.spotlight || 'rgba(215, 250, 103, 0.12)';
       const border = el.dataset.border || 'rgba(215, 250, 103, 0.35)';
-      const radius = parseInt(el.dataset.radius || '8', 10);
+      const radius = parseInt(el.dataset.radius || '10', 10);
+      const isDetail = el.classList.contains('detail-panel');
       const root = createRoot(el);
       root.render(
-        <SpotlightCard spotlightColor={spotlight} borderColor={border} radius={radius}>
-          <div dangerouslySetInnerHTML={{ __html: innerHTML }} />
+        <SpotlightCard
+          spotlightColor={spotlight}
+          borderColor={border}
+          radius={radius}
+          style={{
+            padding: isDetail ? '28px' : '32px',
+          }}
+        >
+          <div
+            className="spotlight-inner-slot"
+            style={{
+              width: '100%',
+              height: '100%',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+            dangerouslySetInnerHTML={{ __html: innerHTML }}
+          />
         </SpotlightCard>
       );
       roots.set(el, root);
